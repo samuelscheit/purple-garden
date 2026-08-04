@@ -4,7 +4,7 @@
 )))]
 compile_error!("purple-garden currently supports only Linux or macOS on x86_64 or aarch64");
 
-use std::collections::HashMap;
+use std::{collections::HashMap, marker::PhantomData};
 
 use purple_garden_bc::{self as bc, CcCallTarget};
 use purple_garden_frontend::{
@@ -246,12 +246,63 @@ pub struct Program<'p> {
     funcs: HashMap<&'p str, (CcCallTarget, FunctionType<'p>)>,
 }
 
-/// A handle to a purple garden function extracted from [`Program`] via [`Program::function`],
-/// invokable using [`Program::call`] or [`Program::call_unchecked`]
-#[derive(Debug)]
-pub struct Function<'f> {
+/// A typed handle to a Purple Garden function extracted from [`Program`] via
+/// [`Program::function`].
+///
+/// Its type captures the Rust argument tuple and return type validated at
+/// lookup, so [`Program::call`] does not need explicit generic arguments.
+pub struct Function<Args, Ret> {
+    raw: RawFunction,
+    marker: PhantomData<fn(Args) -> Ret>,
+}
+
+impl<Args, Ret> std::fmt::Debug for Function<Args, Ret> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Function").field("raw", &self.raw).finish()
+    }
+}
+
+/// A raw Purple Garden function handle extracted via [`Program::function_unchecked`].
+///
+/// It can only be invoked through [`Program::call_unchecked`], whose caller is
+/// responsible for supplying correctly encoded arguments and decoding the
+/// return value correctly.
+#[derive(Debug, Clone, Copy)]
+pub struct RawFunction {
     handle: CcCallTarget,
-    signature: FunctionType<'f>,
+}
+
+/// Failure while resolving a Garden function for invocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FunctionLookupError {
+    /// No compiled function has the requested name.
+    NotFound { name: String },
+    /// The requested Rust signature does not match the Garden declaration.
+    SignatureMismatch { name: String },
+}
+
+impl std::fmt::Display for FunctionLookupError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotFound { name } => write!(f, "Garden function `{name}` was not found"),
+            Self::SignatureMismatch { name } => {
+                write!(f, "Rust signature does not match Garden function `{name}`")
+            }
+        }
+    }
+}
+
+impl std::error::Error for FunctionLookupError {}
+
+fn signature_matches<Args, Ret>(signature: &FunctionType<'_>) -> bool
+where
+    Args: CallArgs,
+    Ret: PgType,
+{
+    Ret::TYPE == signature.ret
+        && Args::TYPES
+            .iter()
+            .eq(signature.args.iter().map(|(_, ty)| ty))
 }
 
 impl<'p> Program<'p> {
@@ -299,11 +350,7 @@ impl<'p> Program<'p> {
             return Ok(());
         }
         self.vm.pc = self.entry;
-        if self.vm.config.backtrace {
-            self.vm.run::<true>(&self.syscalls)
-        } else {
-            self.vm.run::<false>(&self.syscalls)
-        }
+        self.run_bytecode()
     }
 
     /// Runs the program and decodes the entry return value
@@ -328,11 +375,13 @@ impl<'p> Program<'p> {
         Ok(T::from_vm(&self.vm, *self.vm.r(0)))
     }
 
-    /// Looks up a named Garden function for later invocation with
-    /// [`Program::call`].
+    /// Looks up a named Garden function and validates its Rust signature for
+    /// later invocation with [`Program::call`].
     ///
-    /// The name is the function declaration name. Returns `None` when the compiled source does not
-    /// define that function.
+    /// The first generic argument is the tuple passed to [`Program::call`];
+    /// it can be inferred from a later call. The second is the Rust return
+    /// type. Lookup fails when the function is absent or its declared Garden
+    /// signature does not match those types.
     ///
     /// # Examples
     ///
@@ -341,10 +390,12 @@ impl<'p> Program<'p> {
     ///
     /// let mut program = Pg::new()
     ///     .compile(br#"fn identity(value: Int) Int { value }"#)?;
-    /// let identity = program.function("identity").expect("function exists");
-    /// assert_eq!(program.call::<_, i64>(&identity, (42i64,))?, 42);
+    /// let identity = program
+    ///     .function::<_, i64>("identity")
+    ///     .expect("function exists with the expected signature");
+    /// assert_eq!(program.call(&identity, (42i64,))?, 42);
     ///
-    /// assert!(program.function("not_declared").is_none());
+    /// assert!(program.function::<(i64,), i64>("not_declared").is_err());
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     ///
@@ -354,22 +405,65 @@ impl<'p> Program<'p> {
     /// use purple_garden::Pg;
     ///
     /// let mut program = Pg::new().compile(br#"fn double(value: Int) Int { value * 2 }"#)?;
-    /// let double = program.function("double").expect("function exists");
+    /// let double = program
+    ///     .function::<_, i64>("double")
+    ///     .expect("function exists with the expected signature");
     /// for i in 0..4i64 {
-    ///     assert_eq!(program.call::<_, i64>(&double, (i,))?, i * 2);
+    ///     assert_eq!(program.call(&double, (i,))?, i * 2);
     /// }
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn function(&self, name: &str) -> Option<Function<'p>> {
-        self.funcs.get(name).cloned().map(|(handle, signature)| {
-            let f = Function { handle, signature };
-            trace!("extracted `{}` handle: {:?}", name, f);
-            return f;
-        })
+    pub fn function<Args, Ret>(
+        &self,
+        name: &str,
+    ) -> Result<Function<Args, Ret>, FunctionLookupError>
+    where
+        Args: CallArgs,
+        Ret: PgType,
+    {
+        let (raw, signature) = self.lookup_function(name)?;
+        if !signature_matches::<Args, Ret>(signature) {
+            return Err(FunctionLookupError::SignatureMismatch {
+                name: name.to_owned(),
+            });
+        }
+
+        let function = Function {
+            raw,
+            marker: PhantomData,
+        };
+        trace!("extracted `{}` typed handle: {:?}", name, function);
+        Ok(function)
     }
 
-    /// Invokes a function from a handle returned by [`Program::function`] with already encoded
-    /// arguments and returns its raw return register.
+    /// Looks up a named Garden function for raw invocation with
+    /// [`Program::call_unchecked`].
+    ///
+    /// Unlike [`Program::function`], this does not validate a Rust signature.
+    /// The caller of [`Program::call_unchecked`] must uphold the raw VM value
+    /// contract instead.
+    pub fn function_unchecked(&self, name: &str) -> Result<RawFunction, FunctionLookupError> {
+        let (function, _) = self.lookup_function(name)?;
+        trace!("extracted `{}` raw handle: {:?}", name, function);
+        Ok(function)
+    }
+
+    fn lookup_function(
+        &self,
+        name: &str,
+    ) -> Result<(RawFunction, &FunctionType<'p>), FunctionLookupError> {
+        let Some((handle, signature)) = self.funcs.get(name) else {
+            return Err(FunctionLookupError::NotFound {
+                name: name.to_owned(),
+            });
+        };
+
+        Ok((RawFunction { handle: *handle }, signature))
+    }
+
+    /// Invokes a function from a handle returned by
+    /// [`Program::function_unchecked`] with already encoded arguments and
+    /// returns its raw return register.
     ///
     /// Does NOT check the rust types matching the purple garden types, use [`Program::call`] for
     /// the checked variant.
@@ -389,7 +483,9 @@ impl<'p> Program<'p> {
     /// use purple_garden::{Pg, embed::Value};
     ///
     /// let mut program = Pg::new().compile(br#"fn add(a: Int b: Int) Int { a + b }"#)?;
-    /// let add = program.function("add").expect("function exists");
+    /// let add = program
+    ///     .function_unchecked("add")
+    ///     .expect("function exists");
     ///
     /// let args: [Value; 2] = [40i64.into(), 2i64.into()];
     /// let ret = unsafe { program.call_unchecked(&add, &args)? };
@@ -404,7 +500,9 @@ impl<'p> Program<'p> {
     /// use purple_garden::{Pg, embed::Value};
     ///
     /// let mut program = Pg::new().compile(br#"fn identity(value: Int) Int { value }"#)?;
-    /// let identity = program.function("identity").expect("function exists");
+    /// let identity = program
+    ///     .function_unchecked("identity")
+    ///     .expect("function exists");
     ///
     /// let ret = unsafe { program.call_unchecked(&identity, &[42i64.into()])? };
     /// assert_eq!(ret.as_int(), 42);
@@ -413,7 +511,7 @@ impl<'p> Program<'p> {
     /// ```
     pub unsafe fn call_unchecked<'vm>(
         &'vm mut self,
-        function: &Function,
+        function: &RawFunction,
         args: &[Value],
     ) -> Result<Value, Anomaly> {
         self.vm.reset();
@@ -425,11 +523,7 @@ impl<'p> Program<'p> {
         match function.handle {
             CcCallTarget::Bc { pc } => {
                 self.vm.pc = pc;
-                if self.vm.config.backtrace {
-                    self.vm.run::<true>(&self.syscalls)?;
-                } else {
-                    self.vm.run::<false>(&self.syscalls)?;
-                }
+                self.run_bytecode()?;
             }
             CcCallTarget::Native { idx } => {
                 unsafe { self.syscalls[idx as usize]((&mut self.vm as *mut Vm).cast()) };
@@ -439,15 +533,21 @@ impl<'p> Program<'p> {
         Ok(*self.vm.r(0))
     }
 
-    /// Invokes a function from a handle returned by [`Program::function`] with arguments and
-    /// decodes its return value into a Rust type.
+    fn run_bytecode(&mut self) -> Result<(), Anomaly> {
+        if self.vm.config.backtrace {
+            self.vm.run::<true>(&self.syscalls)
+        } else {
+            self.vm.run::<false>(&self.syscalls)
+        }
+    }
+
+    /// Invokes a typed handle returned by [`Program::function`] and decodes
+    /// its return value into Rust.
     ///
-    /// Arguments are passed through [`IntoVm`] and the result through [`FromVm`]. The function must
-    /// accept the supplied number and type of arguments.
-    ///
-    /// Arguments are a tuple, a single argument is therefore `(T,)`. Argument count, argument
-    /// types and the return type are checked against the declared signature before the call
-    /// happens, a mismatch produces Err([`Anomaly`])
+    /// Arguments are passed through [`IntoVm`] and the result through
+    /// [`FromVm`]. Argument and return types were checked when the handle was
+    /// created, so calls do not need explicit generic arguments. Arguments are
+    /// a tuple; a single argument is therefore `(T,)`.
     ///
     /// # Examples
     ///
@@ -455,8 +555,10 @@ impl<'p> Program<'p> {
     /// use purple_garden::Pg;
     ///
     /// let mut program = Pg::new().compile(br#"fn add(a: Int b: Int) Int { a + b }"#)?;
-    /// let add = program.function("add").expect("function exists");
-    /// assert_eq!(program.call::<_, i64>(&add, (40i64, 2i64))?, 42);
+    /// let add = program
+    ///     .function::<_, i64>("add")
+    ///     .expect("function exists with the expected signature");
+    /// assert_eq!(program.call(&add, (40i64, 2i64))?, 42);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     ///
@@ -471,68 +573,35 @@ impl<'p> Program<'p> {
     /// import "io"
     /// fn log(value: Int) { io.println(value) }
     /// "#)?;
-    /// let log = program.function("log").expect("function exists");
-    /// program.call::<_, ()>(&log, (42i64,))?;
+    /// let log = program
+    ///     .function::<_, ()>("log")
+    ///     .expect("function exists with the expected signature");
+    /// program.call(&log, (42i64,))?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     ///
-    /// Every part of the signature is checked:
+    /// Every part of the signature is checked at lookup:
     ///
     /// ```
-    /// use purple_garden::Pg;
+    /// use purple_garden::{FunctionLookupError, Pg};
     ///
     /// let mut program = Pg::new().compile(br#"fn add(a: Int b: Int) Int { a + b }"#)?;
-    /// let add = program.function("add").expect("function exists");
+    /// let result = program.function::<(i64, i64), f64>("add");
     ///
-    /// assert!(program.call::<_, f64>(&add, (40i64, 2i64)).is_err());
-    /// assert!(program.call::<_, i64>(&add, (40i64,)).is_err());
-    /// assert!(program.call::<_, i64>(&add, (40i64, 2.0f64)).is_err());
+    /// assert!(matches!(result, Err(FunctionLookupError::SignatureMismatch { .. })));
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn call<'vm, Args, Ret>(
         &'vm mut self,
-        function: &Function,
+        function: &Function<Args, Ret>,
         args: Args,
     ) -> Result<Ret, Anomaly>
     where
         Args: CallArgs,
-        Ret: PgType + FromVm<'vm>,
+        Ret: FromVm<'vm>,
     {
-        let signature = &function.signature;
-        let pc_or_fallback = match function.handle {
-            CcCallTarget::Bc { pc } => pc,
-            CcCallTarget::Native { .. } => 0,
-        };
-
-        if Ret::TYPE != signature.ret {
-            return Err(Anomaly::Msg {
-                msg: "Return type provided does not match the purple garden functions return type",
-                pc: pc_or_fallback,
-            });
-        }
-
-        let as_types = Args::TYPES;
-        if as_types.len() != signature.args.len() {
-            return Err(Anomaly::Msg {
-                msg: "Provided argument count does not match the purple garden functions argument count",
-                pc: pc_or_fallback,
-            });
-        }
-
-        for (i, arg) in as_types.iter().enumerate() {
-            let expected_type = &signature.args[i].1;
-            if arg != expected_type {
-                return Err(Anomaly::Msg {
-                    msg: "Provided arguments type does not match the type of the purple garden functions argument",
-                    // TODO: i need to improve the errors here
-                    // msg: &format!("argument {i} is {expected_type}, not {arg}"),
-                    pc: pc_or_fallback,
-                });
-            }
-        }
-
         let args = args.inner(&mut self.vm);
-        let ret = unsafe { self.call_unchecked(function, args.as_ref())? };
+        let ret = unsafe { self.call_unchecked(&function.raw, args.as_ref())? };
         let result = Ret::from_vm(&self.vm, ret);
         Ok(result)
     }
@@ -653,6 +722,128 @@ mod tests {
             assert_eq!(signature.ret, embed::Type::Int);
             assert!(program.funcs.contains_key("unused"));
             assert!(!program.funcs.contains_key("entry"));
+        }
+    }
+
+    #[test]
+    fn typed_function_handles_run_without_call_generics() {
+        for no_jit in [true, false] {
+            let want_native = !no_jit && cfg!(target_arch = "x86_64");
+            let mut config = config::Config::default();
+            config.no_jit = no_jit;
+            let mut program = Pg::new()
+                .config(config)
+                .compile(
+                    br#"
+fn increment(value:Int) Int { value + 1 }
+fn dispatch(value:Int) {}
+increment(0)
+"#,
+                )
+                .expect("program should compile");
+
+            let increment = program
+                .function::<_, i64>("increment")
+                .expect("increment should have the expected signature");
+            assert_eq!(
+                matches!(increment.raw.handle, CcCallTarget::Native { .. }),
+                want_native,
+                "no_jit={no_jit}"
+            );
+            for value in 0..4_i64 {
+                assert_eq!(program.call(&increment, (value,)).unwrap(), value + 1);
+            }
+
+            let dispatch = program
+                .function::<_, ()>("dispatch")
+                .expect("dispatch should have the expected signature");
+            program.call(&dispatch, (42_i64,)).unwrap();
+        }
+    }
+
+    #[test]
+    fn typed_function_lookup_rejects_missing_and_mismatched_signatures() {
+        let program = Pg::new()
+            .compile(b"fn add(left:Int right:Int) Int { left + right }\nadd(1 2)")
+            .expect("program should compile");
+
+        assert_eq!(
+            program
+                .function::<(i64, i64), i64>("missing")
+                .expect_err("missing function should fail lookup"),
+            FunctionLookupError::NotFound {
+                name: "missing".to_owned(),
+            }
+        );
+        assert_eq!(
+            program
+                .function::<(i64, i64), f64>("add")
+                .expect_err("wrong return type should fail lookup"),
+            FunctionLookupError::SignatureMismatch {
+                name: "add".to_owned(),
+            }
+        );
+        assert_eq!(
+            program
+                .function::<(i64,), i64>("add")
+                .expect_err("wrong argument count should fail lookup"),
+            FunctionLookupError::SignatureMismatch {
+                name: "add".to_owned(),
+            }
+        );
+        assert_eq!(
+            program
+                .function::<(i64, f64), i64>("add")
+                .expect_err("wrong argument type should fail lookup"),
+            FunctionLookupError::SignatureMismatch {
+                name: "add".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn typed_handles_support_zero_arguments_and_borrowed_returns() {
+        let mut program = Pg::new()
+            .compile(
+                br#"
+fn answer() Int { 42 }
+fn label() Str { "violet" }
+answer()
+"#,
+            )
+            .expect("program should compile");
+
+        let answer = program
+            .function::<(), i64>("answer")
+            .expect("answer should have the expected signature");
+        assert_eq!(program.call(&answer, ()).unwrap(), 42);
+
+        let label = program
+            .function::<(), &str>("label")
+            .expect("label should have the expected signature");
+        let value: &str = program.call(&label, ()).unwrap();
+        assert_eq!(value, "violet");
+    }
+
+    #[test]
+    fn raw_function_handles_remain_available_for_unchecked_calls() {
+        for no_jit in [true, false] {
+            let mut config = config::Config::default();
+            config.no_jit = no_jit;
+            let mut program = Pg::new()
+                .config(config)
+                .compile(b"fn increment(value:Int) Int { value + 1 }\nincrement(0)")
+                .expect("program should compile");
+            let increment = program
+                .function_unchecked("increment")
+                .expect("increment should exist");
+
+            let value = unsafe {
+                program
+                    .call_unchecked(&increment, &[Value::from(41_i64)])
+                    .expect("raw call should succeed")
+            };
+            assert_eq!(value.as_int(), 42, "no_jit={no_jit}");
         }
     }
 }

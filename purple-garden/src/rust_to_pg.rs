@@ -12,6 +12,16 @@ pub trait CallArgs {
     fn inner(self, vm: &mut Vm) -> Self::Values;
 }
 
+impl CallArgs for () {
+    type Values = [Value; 0];
+
+    const TYPES: &'static [Type<'static>] = &[];
+
+    fn inner(self, _: &mut Vm) -> Self::Values {
+        []
+    }
+}
+
 macro_rules! impl_call_args {
     // Match the arity, then one or more (index, type) pairs.
     ( $arity:literal; $( ($idx:tt, $ty:ident) ),+ $(,)? ) => {
