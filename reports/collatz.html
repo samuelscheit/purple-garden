@@ -1,0 +1,1040 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="purple-garden-inspect">
+<title>collatz.garden · purple garden</title>
+<style>/* flat and rectangular: code is colorful, the chrome uses a foreground, a muted gray, the border
+   and one accent for what's selected */
+:root {
+  --bg: #ffffff;
+  --bg-alt: #f4f4f4;
+  --fg: #111111;
+  --muted: #6a6a6a;
+  --border: #d4d4d4;
+  --accent: #0b5cd5;
+  --hover: #fff1b8;
+  --active: #e8eefb;
+  --added: #e2f5e5;
+  --removed: #fbe4e4;
+  --danger: #c1121f;
+  --success: #1a7f37;
+  --c-keyword: #0033b3;
+  --c-flow: #7a0099;
+  --c-reg: #1f6f43;
+  --c-imm: #a3530b;
+  --c-label: #0b5cd5;
+  --c-func: #8a4600;
+  --c-type: #7c3aed;
+  --c-comment: #7b7b7b;
+  --c-string: #067d17;
+  --bars: #0b5cd5, #1a7f37, #a30fb3, #0e7490, #a16207, #c1121f;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111111;
+    --bg-alt: #1b1b1b;
+    --fg: #e6e6e6;
+    --muted: #8f8f8f;
+    --border: #333333;
+    --accent: #5b9dff;
+    --hover: #4a3f12;
+    --active: #1d2a40;
+    --added: #12301b;
+    --removed: #3a1616;
+    --danger: #ff6b6b;
+    --success: #4ccb6f;
+    --c-keyword: #7aa2ff;
+    --c-flow: #d58cff;
+    --c-reg: #7ed6a2;
+    --c-imm: #f0b35a;
+    --c-label: #6fb3ff;
+    --c-func: #f5c26b;
+    --c-type: #c6a5ff;
+    --c-comment: #8a8a8a;
+    --c-string: #9fd88a;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.4 var(--sans);
+}
+button {
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+button:hover { background: var(--bg-alt); }
+
+#header, #status, .bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+#header { height: 32px; }
+#header .file { font-weight: 600; }
+#header .note, .bar { color: var(--muted); font-size: 12px; }
+#header .bad { color: var(--danger); }
+#status {
+  height: 24px;
+  border-bottom: 0;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font: 12px var(--mono);
+  gap: 20px;
+}
+.bar { height: 28px; }
+
+main { flex: 1; min-height: 0; display: flex; }
+#source {
+  flex: 0 0 40%;
+  min-width: 280px;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  resize: horizontal;
+  font: 12.5px/19px var(--mono);
+  padding: 6px 0;
+}
+#views { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#content { flex: 1; min-height: 0; display: flex; position: relative; }
+
+/* tabs and selectable items: an accent underline or edge marks the selection */
+#tabs { display: flex; height: 32px; border-bottom: 1px solid var(--border); padding: 0 4px; flex: none; }
+#tabs a {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+#tabs a:hover { color: var(--fg); }
+#tabs a.on { color: var(--fg); font-weight: 600; border-bottom-color: var(--accent); }
+#tabs .count { color: var(--danger); font-size: 12px; font-weight: 400; }
+#functions {
+  display: flex;
+  height: 28px;
+  border-bottom: 1px solid var(--border);
+  font: 12px var(--mono);
+  overflow-x: auto;
+  flex: none;
+}
+#functions[hidden] { display: none; }
+.item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.item:hover { background: var(--bg-alt); }
+.item.on { background: var(--bg-alt); border-left-color: var(--accent); }
+.item.unused { color: var(--muted); }
+.sep { width: 1px; background: var(--border); flex: none; }
+.legend { margin-left: auto; display: flex; align-items: center; gap: 6px; padding: 0 12px; color: var(--muted); }
+.marker { width: 7px; height: 7px; border: 1px solid var(--muted); flex: none; }
+.marker.native { background: var(--accent); border-color: var(--accent); }
+.marker.unused { border-color: var(--border); }
+
+/* source */
+.src { display: flex; padding-right: 12px; cursor: pointer; white-space: pre; }
+.src .n { width: 4ch; flex: none; text-align: right; padding-right: 2ch; color: var(--muted); user-select: none; }
+.src.on { background: var(--active); }
+.src.hov { background: var(--hover); }
+
+/* listings */
+.scroll { flex: 1; min-width: 0; overflow: auto; }
+.listing { font: 12.5px/18px var(--mono); padding: 4px 0; min-width: max-content; }
+.ln { display: flex; gap: 12px; padding: 0 8px; white-space: pre; min-height: 18px; }
+.ln .g { color: var(--muted); flex: none; text-align: right; }
+.ln.tone-Label { font-weight: 600; }
+.ln.tone-Added { background: var(--added); }
+.ln.tone-Removed { background: var(--removed); text-decoration: line-through; }
+.ln.tone-Muted { color: var(--muted); }
+.ln.on { background: var(--active); }
+.ln.hov, .hov { background: var(--hover); }
+
+.passes { flex: none; width: 200px; overflow-y: auto; border-right: 1px solid var(--border); padding: 4px 0; font: 12px var(--mono); }
+.passes .item { justify-content: space-between; padding-top: 2px; padding-bottom: 2px; color: var(--muted); }
+.passes .item.changed { color: var(--fg); }
+
+/* highlight classes, the listings' (by [`Class`]) and the source's (by token) */
+.Mnem, .keyword, .boolean { color: var(--c-keyword); }
+.Flow { color: var(--c-flow); font-weight: 600; }
+.Reg, .variable { color: var(--c-reg); }
+.Imm, .number { color: var(--c-imm); }
+.Label { color: var(--c-label); }
+.Func, .function { color: var(--c-func); font-weight: 600; }
+.Block, .Section { color: var(--c-label); font-weight: 600; }
+.Type, .type { color: var(--c-type); }
+.Comment, .Addr, .comment, .comment-doc { color: var(--c-comment); }
+.Dead { color: var(--danger); }
+.string { color: var(--c-string); }
+
+/* control flow graphs */
+.cfg { flex: 1; position: relative; overflow: hidden; cursor: grab; }
+.cfg.drag { cursor: grabbing; }
+.cfg .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.cfg svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.cfg path { fill: none; stroke: var(--muted); stroke-width: 1.25; }
+.cfg path.back, .cfg path.call { stroke: var(--c-flow); }
+.cfg path.call { stroke-dasharray: 5 4; }
+.cfg polygon { fill: var(--muted); }
+.cfg polygon.back, .cfg polygon.call { fill: var(--c-flow); }
+.cfg .node {
+  position: absolute;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-family: var(--mono);
+  white-space: pre;
+  overflow: hidden;
+}
+.cfg .node div { padding: 0 var(--pad); }
+.cfg .node div:first-child { background: var(--bg-alt); }
+.cfg .title { position: absolute; font: 600 13px var(--mono); white-space: nowrap; }
+.cfg .tools {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: default;
+}
+.cfg .tools .zoom { width: 4em; text-align: center; }
+
+/* register lanes */
+.regs { flex: 1; overflow: auto; padding: 8px 12px; font: 12px var(--mono); }
+.regs h3 { font-size: 13px; margin: 12px 0 4px; }
+.regs .why { color: var(--muted); }
+.timeline { position: relative; }
+.timeline > * { position: absolute; }
+.timeline .lane { color: var(--muted); }
+.timeline .tick { color: var(--muted); }
+.timeline .rule { width: 1px; background: var(--border); }
+.timeline .live { background: var(--accent); opacity: 0.3; }
+.timeline .bar { border: 1px solid; overflow: hidden; padding: 0 3px; white-space: nowrap; }
+.timeline .bar.hov { filter: brightness(1.15); }
+.timeline .cursor { background: var(--hover); opacity: 0.6; }
+
+/* memory and output */
+.page { flex: 1; overflow: auto; padding: 8px 16px 16px; font: 12px var(--mono); }
+.page h4 { margin: 14px 0 6px; font: 600 11px var(--sans); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.page table { border-collapse: collapse; }
+.page th { text-align: left; color: var(--muted); font-weight: 400; border-bottom: 1px solid var(--border); }
+.page th, .page td { padding: 3px 16px 3px 0; }
+.meter { display: inline-block; width: 140px; height: 8px; background: var(--bg-alt); vertical-align: middle; margin-right: 8px; }
+.meter > span { display: block; height: 100%; background: var(--accent); }
+.meter.peak > span { background: var(--c-flow); }
+.page pre { margin: 0 0 8px; white-space: pre-wrap; }
+.page .error { color: var(--danger); cursor: pointer; }
+.page .error:hover { background: var(--bg-alt); }
+.empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--muted); padding: 24px; text-align: center; }
+</style>
+</head>
+<body>
+<header id="header"></header>
+<main>
+  <section id="source" aria-label="source"></section>
+  <section id="views">
+    <nav id="tabs" aria-label="views"></nav>
+    <nav id="functions" aria-label="functions"></nav>
+    <div id="content"></div>
+  </section>
+</main>
+<footer id="status"></footer>
+<script id="data" type="application/json">{"file":"collatz.garden","source":"# Sum of Collatz step counts from 1 to N. Mixed branching, integer division,\n# modulo, multiplication.\nimport \"testing\"\n\n#! Return whether `n` is even using modulo arithmetic.\nfn is_even(n:Int) Bool {\n    n % 2 == 0\n}\n\n#! Count Collatz steps for `n`, accumulating the total in `acc`.\nfn collatz_steps(n:Int acc:Int) Int {\n    match {\n        n == 1 { acc }\n        is_even(n) { collatz_steps(n / 2  acc + 1) }\n        { collatz_steps(3 * n + 1  acc + 1) }\n    }\n}\n\n#! Sum Collatz step counts for every integer from `i` through `n`.\nfn sum_steps(i:Int n:Int acc:Int) Int {\n    match {\n        i \u003e n { acc }\n        { sum_steps(i + 1  n  acc + collatz_steps(i 0)) }\n    }\n}\n\n# steps for 1..1000 sums to a known value.\ntesting.assert(sum_steps(1 1000 0) == 59542)\n","tokens":[[0,76,"comment"],[77,102,"comment"],[103,109,"keyword"],[110,119,"string"],[121,175,"comment.doc"],[176,178,"keyword"],[179,186,"function"],[186,187,"punctuation.bracket"],[187,188,"variable"],[188,189,"punctuation.delimiter"],[189,192,"type"],[192,193,"punctuation.bracket"],[194,198,"type"],[199,200,"punctuation.bracket"],[205,206,"variable"],[207,208,"operator"],[209,210,"number"],[211,213,"operator"],[214,215,"number"],[216,217,"punctuation.bracket"],[219,283,"comment.doc"],[284,286,"keyword"],[287,300,"function"],[300,301,"punctuation.bracket"],[301,302,"variable"],[302,303,"punctuation.delimiter"],[303,306,"type"],[307,310,"variable"],[310,311,"punctuation.delimiter"],[311,314,"type"],[314,315,"punctuation.bracket"],[316,319,"type"],[320,321,"punctuation.bracket"],[326,331,"keyword"],[332,333,"punctuation.bracket"],[342,343,"variable"],[344,346,"operator"],[347,348,"number"],[349,350,"punctuation.bracket"],[351,354,"variable"],[355,356,"punctuation.bracket"],[365,372,"function"],[372,373,"punctuation.bracket"],[373,374,"variable"],[374,375,"punctuation.bracket"],[376,377,"punctuation.bracket"],[378,391,"function"],[391,392,"punctuation.bracket"],[392,393,"variable"],[394,395,"operator"],[396,397,"number"],[399,402,"variable"],[403,404,"operator"],[405,406,"number"],[406,407,"punctuation.bracket"],[408,409,"punctuation.bracket"],[418,419,"punctuation.bracket"],[420,433,"function"],[433,434,"punctuation.bracket"],[434,435,"number"],[436,437,"operator"],[438,439,"variable"],[440,441,"operator"],[442,443,"number"],[445,448,"variable"],[449,450,"operator"],[451,452,"number"],[452,453,"punctuation.bracket"],[454,455,"punctuation.bracket"],[460,461,"punctuation.bracket"],[462,463,"punctuation.bracket"],[465,531,"comment.doc"],[532,534,"keyword"],[535,544,"function"],[544,545,"punctuation.bracket"],[545,546,"variable"],[546,547,"punctuation.delimiter"],[547,550,"type"],[551,552,"variable"],[552,553,"punctuation.delimiter"],[553,556,"type"],[557,560,"variable"],[560,561,"punctuation.delimiter"],[561,564,"type"],[564,565,"punctuation.bracket"],[566,569,"type"],[570,571,"punctuation.bracket"],[576,581,"keyword"],[582,583,"punctuation.bracket"],[592,593,"variable"],[594,595,"operator"],[596,597,"variable"],[598,599,"punctuation.bracket"],[600,603,"variable"],[604,605,"punctuation.bracket"],[614,615,"punctuation.bracket"],[616,625,"function"],[625,626,"punctuation.bracket"],[626,627,"variable"],[628,629,"operator"],[630,631,"number"],[633,634,"variable"],[636,639,"variable"],[640,641,"operator"],[642,655,"function"],[655,656,"punctuation.bracket"],[656,657,"variable"],[658,659,"number"],[659,660,"punctuation.bracket"],[660,661,"punctuation.bracket"],[662,663,"punctuation.bracket"],[668,669,"punctuation.bracket"],[670,671,"punctuation.bracket"],[673,715,"comment"],[716,723,"variable"],[723,724,"punctuation.delimiter"],[724,730,"function"],[730,731,"punctuation.bracket"],[731,740,"function"],[740,741,"punctuation.bracket"],[741,742,"number"],[743,747,"number"],[748,749,"number"],[749,750,"punctuation.bracket"],[751,753,"operator"],[754,759,"number"],[759,760,"punctuation.bracket"]],"diagnostics":[],"error":null,"phases":[{"name":"scratch","micros":0,"allocs":1,"frees":1,"bytes":65536,"peak":65536},{"name":"parse","micros":31,"allocs":1,"frees":1,"bytes":65536,"peak":65536},{"name":"typecheck","micros":24,"allocs":1,"frees":1,"bytes":65536,"peak":65536},{"name":"lower ir","micros":15,"allocs":1,"frees":1,"bytes":65536,"peak":65536},{"name":"opt","micros":305,"allocs":0,"frees":0,"bytes":0,"peak":0},{"name":"bytecode","micros":15,"allocs":2,"frees":2,"bytes":672,"peak":672},{"name":"jit","micros":18,"allocs":0,"frees":0,"bytes":0,"peak":0}],"classes":["Addr","Mnem","Flow","Reg","Imm","Label","Comment","Func","Block","Section","Type","Dead"],"tones":["Normal","Label","Added","Removed","Muted"],"ast":[["1","(import \"testing\")",[],null,0],["2","(fn is_even (n: Int) -\u003e Bool",[],null,0],["3","  (==",[],null,0],["4","    (%",[],null,0],["5","      n",[],null,0],["6","      2",[],null,0],["7","    )",[],null,0],["8","    0",[],null,0],["9","  )",[],null,0],["10",")",[],null,0],["11","(fn collatz_steps (n: Int acc: Int) -\u003e Int",[],null,0],["12","  (match",[],null,0],["13","    (case",[],null,0],["14","      when:",[],null,0],["15","        (==",[],null,0],["16","          n",[],null,0],["17","          1",[],null,0],["18","        )",[],null,0],["19","      then:",[],null,0],["20","        acc",[],null,0],["21","    )",[],null,0],["22","    (case",[],null,0],["23","      when:",[],null,0],["24","        (call",[],null,0],["25","          target:",[],null,0],["26","            is_even",[],null,0],["27","          arg:",[],null,0],["28","            n",[],null,0],["29","        )",[],null,0],["30","      then:",[],null,0],["31","        (call",[],null,0],["32","          target:",[],null,0],["33","            collatz_steps",[],null,0],["34","          arg:",[],null,0],["35","            (/",[],null,0],["36","              n",[],null,0],["37","              2",[],null,0],["38","            )",[],null,0],["39","          arg:",[],null,0],["40","            (+",[],null,0],["41","              acc",[],null,0],["42","              1",[],null,0],["43","            )",[],null,0],["44","        )",[],null,0],["45","    )",[],null,0],["46","    (default",[],null,0],["47","      (call",[],null,0],["48","        target:",[],null,0],["49","          collatz_steps",[],null,0],["50","        arg:",[],null,0],["51","          (+",[],null,0],["52","            (*",[],null,0],["53","              3",[],null,0],["54","              n",[],null,0],["55","            )",[],null,0],["56","            1",[],null,0],["57","          )",[],null,0],["58","        arg:",[],null,0],["59","          (+",[],null,0],["60","            acc",[],null,0],["61","            1",[],null,0],["62","          )",[],null,0],["63","      )",[],null,0],["64","    )",[],null,0],["65","  )",[],null,0],["66",")",[],null,0],["67","(fn sum_steps (i: Int n: Int acc: Int) -\u003e Int",[],null,0],["68","  (match",[],null,0],["69","    (case",[],null,0],["70","      when:",[],null,0],["71","        (\u003e",[],null,0],["72","          i",[],null,0],["73","          n",[],null,0],["74","        )",[],null,0],["75","      then:",[],null,0],["76","        acc",[],null,0],["77","    )",[],null,0],["78","    (default",[],null,0],["79","      (call",[],null,0],["80","        target:",[],null,0],["81","          sum_steps",[],null,0],["82","        arg:",[],null,0],["83","          (+",[],null,0],["84","            i",[],null,0],["85","            1",[],null,0],["86","          )",[],null,0],["87","        arg:",[],null,0],["88","          n",[],null,0],["89","        arg:",[],null,0],["90","          (+",[],null,0],["91","            acc",[],null,0],["92","            (call",[],null,0],["93","              target:",[],null,0],["94","                collatz_steps",[],null,0],["95","              arg:",[],null,0],["96","                i",[],null,0],["97","              arg:",[],null,0],["98","                0",[],null,0],["99","            )",[],null,0],["100","          )",[],null,0],["101","      )",[],null,0],["102","    )",[],null,0],["103","  )",[],null,0],["104",")",[],null,0],["105","(call",[],null,0],["106","  target:",[],null,0],["107","    (field",[],null,0],["108","      target:",[],null,0],["109","        testing",[],null,0],["110","      name: assert",[],null,0],["111","    )",[],null,0],["112","  arg:",[],null,0],["113","    (==",[],null,0],["114","      (call",[],null,0],["115","        target:",[],null,0],["116","          sum_steps",[],null,0],["117","        arg:",[],null,0],["118","          1",[],null,0],["119","        arg:",[],null,0],["120","          1000",[],null,0],["121","        arg:",[],null,0],["122","          0",[],null,0],["123","      )",[],null,0],["124","      59542",[],null,0],["125","    )",[],null,0],["126",")",[],null,0]],"types":[["1","# signatures",[],null,0],["2","is_even: (Int) -\u003e Bool",[],null,0],["3","collatz_steps: (Int Int) -\u003e Int",[],null,0],["4","sum_steps: (Int Int Int) -\u003e Int",[],null,0],["5","# every value",[],null,0],["6","import testing",[],null,0],["7","fn is_even: (Int) -\u003e Bool",[],null,0],["8","  ==: Bool",[],null,0],["9","    %: Int",[],null,0],["10","      n: Int",[],null,0],["11","      2: Int",[],null,0],["12","    0: Int",[],null,0],["13","fn collatz_steps: (Int Int) -\u003e Int",[],null,0],["14","  match: Int",[],null,0],["15","    ==: Bool",[],null,0],["16","      n: Int",[],null,0],["17","      1: Int",[],null,0],["18","      acc: Int",[],null,0],["19","    call: Bool",[],null,0],["20","      callee is_even",[],null,0],["21","      n: Int",[],null,0],["22","      call: Int",[],null,0],["23","        callee collatz_steps",[],null,0],["24","        /: Int",[],null,0],["25","          n: Int",[],null,0],["26","          2: Int",[],null,0],["27","        +: Int",[],null,0],["28","          acc: Int",[],null,0],["29","          1: Int",[],null,0],["30","    call: Int",[],null,0],["31","      callee collatz_steps",[],null,0],["32","      +: Int",[],null,0],["33","        *: Int",[],null,0],["34","          3: Int",[],null,0],["35","          n: Int",[],null,0],["36","        1: Int",[],null,0],["37","      +: Int",[],null,0],["38","        acc: Int",[],null,0],["39","        1: Int",[],null,0],["40","fn sum_steps: (Int Int Int) -\u003e Int",[],null,0],["41","  match: Int",[],null,0],["42","    \u003e: Bool",[],null,0],["43","      i: Int",[],null,0],["44","      n: Int",[],null,0],["45","      acc: Int",[],null,0],["46","    call: Int",[],null,0],["47","      callee sum_steps",[],null,0],["48","      +: Int",[],null,0],["49","        i: Int",[],null,0],["50","        1: Int",[],null,0],["51","      n: Int",[],null,0],["52","      +: Int",[],null,0],["53","        acc: Int",[],null,0],["54","        call: Int",[],null,0],["55","          callee collatz_steps",[],null,0],["56","          i: Int",[],null,0],["57","          0: Int",[],null,0],["58","call: Void",[],null,0],["59","  callee testing.assert",[],null,0],["60","  ==: Bool",[],null,0],["61","    call: Int",[],null,0],["62","      callee sum_steps",[],null,0],["63","      1: Int",[],null,0],["64","      1000: Int",[],null,0],["65","      0: Int",[],null,0],["66","    59542: Int",[],null,0]],"passes":["lower","const_fold_const_calls","inline","const_fold","const_fold_syscalls","arith_simplify","imm_fold","branch_cmp","switch_fold","ret_inline","switch_lookup","indirect_jump","tailcall","addrof_fold","load_store_fold","dce","facts","dce_functions"],"functions":[{"id":1,"name":"is_even","unused":true,"native":false,"reason":"unused, not compiled","rows":[0,0,0,0,0,1,2,2,2,2,2,2,2,2,2,3,3,4],"changes":[null,null,null,null,null,[[0,0,3],[1,3,2],[2,3,2],[0,5,4]],[[0,0,4],[1,4,1],[2,4,1],[0,5,1],[1,6,1],[2,6,1],[0,7,2]],null,null,null,null,null,null,null,null,[[0,0,3],[1,3,1],[0,3,1],[1,5,1],[0,4,3]],null,[[2,0,1],[0,1,7]]],"cfg":[0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,2,2,3],"bytecode":[],"x86":[["","f1 \u003cis_even\u003e:",[[0,13,7]],null,1],["","  ; stays bytecode: unused, not compiled",[[0,40,6]],null,4]],"registers":{"bytecode":{"Err":"not lowered to bytecode, so no registers were allocated"},"x86":{"Err":"not compiled to x86-64: unused, not compiled"}},"pressure":[1,1,2,1,2,1],"blocks":[[0,0]],"spans":[[2,207],[4,211],[5,179]]},{"id":2,"name":"collatz_steps","unused":false,"native":true,"reason":null,"rows":[5,5,6,6,6,6,7,8,8,9,9,9,10,10,10,11,11,11],"changes":[null,null,[[0,0,9],[1,9,2],[2,9,3],[0,12,19]],null,null,null,[[0,0,4],[1,4,1],[2,4,1],[0,5,9],[1,14,1],[2,14,1],[0,15,1],[1,16,1],[2,16,1],[0,17,4],[1,21,1],[2,21,1],[0,22,1],[1,23,1],[2,23,1],[0,24,1],[1,25,1],[2,25,1],[0,26,5]],[[0,0,4],[1,4,2],[2,4,1],[0,5,4],[1,10,2],[2,9,1],[0,10,19]],null,[[0,0,6],[1,6,1],[2,6,1],[0,7,9],[1,16,1],[2,16,1],[0,17,8],[1,25,1],[2,25,1],[0,26,1],[1,27,1],[2,27,1],[0,28,1]],null,null,[[0,0,15],[1,15,2],[2,15,1],[0,16,7],[1,24,2],[2,23,1],[0,24,3]],null,null,[[0,0,3],[1,3,1],[0,3,7],[1,11,1],[0,10,1],[1,13,1],[0,11,3],[1,17,1],[0,14,1],[1,19,1],[0,15,1],[1,21,1],[0,16,5]],null,null],"cfg":[4,4,5,5,5,5,5,6,6,7,7,7,8,8,8,9,9,9],"bytecode":[["0000","\u003ccollatz_steps\u003e:",[[0,16,7]],null,1],["0000","  jmpne_imm r0, #1, 0003 \u003ccollatz_steps.bb_0003\u003e",[[2,11,1],[12,14,3],[16,18,4],[20,24,5],[25,48,5]],[2,3],0],["0001","  mov r0, r1",[[2,5,1],[6,8,3],[10,12,3]],[2,5],0],["0002","  ret",[[2,5,2]],[2,5],0],["0003","\u003ccollatz_steps.bb_0003\u003e:",[[0,24,8]],null,1],["0003","  iand_imm r2, r0, #1",[[2,10,1],[11,13,3],[15,17,3],[19,21,4]],[2,8],0],["0004","  jmpne_imm r2, #0, 0008 \u003ccollatz_steps.bb_0008\u003e",[[2,11,1],[12,14,3],[16,18,4],[20,24,5],[25,48,5]],[2,10],0],["0005","  idiv_imm r0, r0, #2",[[2,10,1],[11,13,3],[15,17,3],[19,21,4]],[2,13],0],["0006","  iadd_imm r1, r1, #1",[[2,10,1],[11,13,3],[15,17,3],[19,21,4]],[2,15],0],["0007","  tail 0000 \u003ccollatz_steps\u003e",[[2,6,2],[7,11,5],[12,27,5]],[2,16],0],["0008","\u003ccollatz_steps.bb_0008\u003e:",[[0,24,8]],null,1],["0008","  imul_imm r0, r0, #3",[[2,10,1],[11,13,3],[15,17,3],[19,21,4]],[2,19],0],["0009","  iadd_imm r0, r0, #1",[[2,10,1],[11,13,3],[15,17,3],[19,21,4]],[2,21],0],["000a","  iadd_imm r1, r1, #1",[[2,10,1],[11,13,3],[15,17,3],[19,21,4]],[2,23],0],["000b","  tail 0000 \u003ccollatz_steps\u003e",[[2,6,2],[7,11,5],[12,27,5]],[2,24],0]],"x86":[["0000","f2 \u003ccollatz_steps\u003e:",[[0,19,7]],null,1],["0000","  48 81 fe 01 00 00 00           cmp     rsi, 1",[[2,22,0],[33,36,1],[41,44,3],[46,47,4]],[2,3],0],["0007","  0f 85 08 00 00 00              jne     b2",[[2,19,0],[33,36,2],[41,43,5]],[2,3],0],["000d","b1:",[[0,3,8]],null,1],["000d","  48 89 d0                       mov     rax, rdx",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[2,5],0],["0010","  c3                             ret",[[2,4,0],[33,36,2]],[2,5],0],["0011","  cc                             int3",[[2,4,0],[33,37,2]],[2,5],0],["0012","  cc                             int3",[[2,4,0],[33,37,2]],[2,5],0],["0013","  cc                             int3",[[2,4,0],[33,37,2]],[2,5],0],["0014","  cc                             int3",[[2,4,0],[33,37,2]],[2,5],0],["0015","b2:",[[0,3,8]],null,1],["0015","  49 89 f0                       mov     r8, rsi",[[2,10,0],[33,36,1],[41,43,3],[45,48,3]],[2,8],0],["0018","  49 81 e0 01 00 00 00           and     r8, 1",[[2,22,0],[33,36,1],[41,43,3],[45,46,4]],[2,8],0],["001f","  4d 85 c0                       test    r8, r8",[[2,10,0],[33,37,1],[41,43,3],[45,47,3]],[2,10],0],["0022","  0f 85 21 00 00 00              jne     b4",[[2,19,0],[33,36,2],[41,43,5]],[2,10],0],["0028","b3:",[[0,3,8]],null,1],["0028","  48 89 f0                       mov     rax, rsi",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[2,13],0],["002b","  48 c1 f8 3f                    sar     rax, 0x3f",[[2,13,0],[33,36,1],[41,44,3],[46,50,4]],[2,13],0],["002f","  48 c1 e8 3f                    shr     rax, 0x3f",[[2,13,0],[33,36,1],[41,44,3],[46,50,4]],[2,13],0],["0033","  48 01 f0                       add     rax, rsi",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[2,13],0],["0036","  48 c1 f8 01                    sar     rax, 1",[[2,13,0],[33,36,1],[41,44,3],[46,47,4]],[2,13],0],["003a","  48 89 c6                       mov     rsi, rax",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[2,13],0],["003d","  48 81 c2 01 00 00 00           add     rdx, 1",[[2,22,0],[33,36,1],[41,44,3],[46,47,4]],[2,15],0],["0044","  e9 b7 ff ff ff                 jmp     f2 \u003ccollatz_steps\u003e",[[2,16,0],[33,36,2],[41,59,5]],[2,16],0],["0049","b4:",[[0,3,8]],null,1],["0049","  48 69 f6 03 00 00 00           imul    rsi, 3",[[2,22,0],[33,37,1],[41,44,3],[46,47,4]],[2,19],0],["0050","  48 81 c6 01 00 00 00           add     rsi, 1",[[2,22,0],[33,36,1],[41,44,3],[46,47,4]],[2,21],0],["0057","  48 81 c2 01 00 00 00           add     rdx, 1",[[2,22,0],[33,36,1],[41,44,3],[46,47,4]],[2,23],0],["005e","  e9 9d ff ff ff                 jmp     f2 \u003ccollatz_steps\u003e",[[2,16,0],[33,36,2],[41,59,5]],[2,24],0],["0063","  c3                             ret",[[2,4,0],[33,36,2]],[2,24],0]],"registers":{"bytecode":{"Ok":[["r0",[{"value":0,"rows":[0,3]},{"value":4,"rows":[4,4]},{"value":6,"rows":[6,10]},{"value":9,"rows":[11,13]},{"value":12,"rows":[13,16]},{"value":16,"rows":[17,19]},{"value":19,"rows":[19,21]},{"value":21,"rows":[21,24]}]],["r1",[{"value":1,"rows":[0,3]},{"value":5,"rows":[4,5]},{"value":7,"rows":[6,10]},{"value":10,"rows":[11,15]},{"value":14,"rows":[15,16]},{"value":17,"rows":[17,23]},{"value":23,"rows":[23,24]}]],["r2",[{"value":30,"rows":[8,10]}]]]},"x86":{"Ok":[["rdx",[{"value":1,"rows":[0,3]},{"value":5,"rows":[4,5]},{"value":7,"rows":[6,10]},{"value":10,"rows":[11,15]},{"value":14,"rows":[15,16]},{"value":17,"rows":[17,23]},{"value":23,"rows":[23,24]}]],["rsi",[{"value":0,"rows":[0,3]},{"value":4,"rows":[4,4]},{"value":6,"rows":[6,10]},{"value":9,"rows":[11,13]},{"value":12,"rows":[13,16]},{"value":16,"rows":[17,19]},{"value":19,"rows":[19,21]},{"value":21,"rows":[21,24]}]],["r8",[{"value":30,"rows":[8,10]}]]]}},"pressure":[2,2,2,2,2,1,2,2,3,3,3,2,2,3,2,3,2,2,2,3,2,3,2,3,2],"blocks":[[0,0],[4,1],[6,2],[11,3],[17,4]],"spans":[[3,342],[5,342],[8,207],[10,365],[13,394],[15,403],[16,378],[19,436],[21,440],[23,449],[24,420]]},{"id":3,"name":"sum_steps","unused":false,"native":true,"reason":null,"rows":[12,12,12,12,12,12,13,13,13,14,14,14,15,15,15,16,16,16],"changes":[null,null,null,null,null,null,[[0,0,9],[1,9,1],[2,9,1],[0,10,8]],null,null,[[0,0,6],[1,6,1],[2,6,1],[0,7,7],[1,14,1],[2,14,1],[0,15,1],[1,16,1],[2,16,1],[0,17,1]],null,null,[[0,0,13],[1,13,2],[2,13,1],[0,14,3]],null,null,[[0,0,8],[1,8,1],[0,8,8]],null,null],"cfg":[10,10,10,10,10,10,10,10,10,11,11,11,12,12,12,13,13,13],"bytecode":[["000c","\u003csum_steps\u003e:",[[0,12,7]],null,1],["000c","  igt r3, r0, r1",[[2,5,1],[6,8,3],[10,12,3],[14,16,3]],[3,1],0],["000d","  jmpf r3, 0010 \u003csum_steps.bb_0010\u003e",[[2,6,2],[7,9,3],[11,15,5],[16,35,5]],[3,2],0],["000e","  mov r0, r2",[[2,5,1],[6,8,3],[10,12,3]],[3,4],0],["000f","  ret",[[2,5,2]],[3,4],0],["0010","\u003csum_steps.bb_0010\u003e:",[[0,20,8]],null,1],["0010","  iadd_imm r3, r0, #1",[[2,10,1],[11,13,3],[15,17,3],[19,21,4]],[3,7],0],["0011","  load_imm r4, #0",[[2,10,1],[11,13,3],[15,17,4]],[3,8],0],["0012","  push3 r1, r2, r3",[[2,7,1],[8,10,3],[12,14,3],[16,18,3]],[3,9],0],["0013","  mov r1, r4",[[2,5,1],[6,8,3],[10,12,3]],[3,9],0],["0014","  call 0000 \u003ccollatz_steps\u003e",[[2,6,2],[7,11,5],[12,27,5]],[3,9],0],["0015","  pop3 r3, r2, r1",[[2,6,1],[7,9,3],[11,13,3],[15,17,3]],[3,9],0],["0016","  iadd r2, r2, r0",[[2,6,1],[7,9,3],[11,13,3],[15,17,3]],[3,10],0],["0017","  mov r0, r3",[[2,5,1],[6,8,3],[10,12,3]],[3,11],0],["0018","  tail 000c \u003csum_steps\u003e",[[2,6,2],[7,11,5],[12,23,5]],[3,11],0]],"x86":[["0000","f3 \u003csum_steps\u003e:",[[0,15,7]],null,1],["0000","  41 55                          push    r13",[[2,7,0],[33,37,1],[41,44,3]],null,4],["0002","  41 56                          push    r14",[[2,7,0],[33,37,1],[41,44,3]],null,4],["0004","  41 57                          push    r15",[[2,7,0],[33,37,1],[41,44,3]],null,4],["0006","b0:",[[0,3,8]],null,1],["0006","  48 39 d6                       cmp     rsi, rdx",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[3,1],0],["0009","  49 c7 c0 00 00 00 00           mov     r8, 0",[[2,22,0],[33,36,1],[41,43,3],[45,46,4]],[3,1],0],["0010","  41 0f 9f c0                    setg    r8b",[[2,13,0],[33,37,1],[41,44,3]],[3,1],0],["0014","  4d 85 c0                       test    r8, r8",[[2,10,0],[33,37,1],[41,43,3],[45,47,3]],[3,2],0],["0017","  0f 84 08 00 00 00              je      b2",[[2,19,0],[33,35,2],[41,43,5]],[3,2],0],["001d","b1:",[[0,3,8]],null,1],["001d","  48 89 c8                       mov     rax, rcx",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[3,4],0],["0020","  e9 39 00 00 00                 jmp     sum_steps+0x5e",[[2,16,0],[33,36,2],[41,55,5]],[3,4],0],["0025","b2:",[[0,3,8]],null,1],["0025","  49 89 f0                       mov     r8, rsi",[[2,10,0],[33,36,1],[41,43,3],[45,48,3]],[3,7],0],["0028","  49 81 c0 01 00 00 00           add     r8, 1",[[2,22,0],[33,36,1],[41,43,3],[45,46,4]],[3,7],0],["002f","  49 c7 c1 00 00 00 00           mov     r9, 0",[[2,22,0],[33,36,1],[41,43,3],[45,46,4]],[3,8],0],["0036","  49 89 d7                       mov     r15, rdx",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[3,9],0],["0039","  4c 89 ca                       mov     rdx, r9",[[2,10,0],[33,36,1],[41,44,3],[46,48,3]],[3,9],0],["003c","  49 89 ce                       mov     r14, rcx",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[3,9],0],["003f","  4d 89 c5                       mov     r13, r8",[[2,10,0],[33,36,1],[41,44,3],[46,48,3]],[3,9],0],["0042","  e8 49 ff ff ff                 call    f2 \u003ccollatz_steps\u003e",[[2,16,0],[33,37,2],[41,59,5]],[3,9],0],["0047","  4c 89 fa                       mov     rdx, r15",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[3,9],0],["004a","  4c 89 f1                       mov     rcx, r14",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[3,9],0],["004d","  4d 89 e8                       mov     r8, r13",[[2,10,0],[33,36,1],[41,43,3],[45,48,3]],[3,9],0],["0050","  48 89 c6                       mov     rsi, rax",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[3,9],0],["0053","  48 01 f1                       add     rcx, rsi",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[3,10],0],["0056","  4c 89 c6                       mov     rsi, r8",[[2,10,0],[33,36,1],[41,44,3],[46,48,3]],[3,11],0],["0059","  e9 a8 ff ff ff                 jmp     b0",[[2,16,0],[33,36,2],[41,43,5]],[3,11],0],["005e","  41 5f                          pop     r15",[[2,7,0],[33,36,1],[41,44,3]],[3,11],0],["0060","  41 5e                          pop     r14",[[2,7,0],[33,36,1],[41,44,3]],[3,11],0],["0062","  41 5d                          pop     r13",[[2,7,0],[33,36,1],[41,44,3]],[3,11],0],["0064","  c3                             ret",[[2,4,0],[33,36,2]],[3,11],0]],"registers":{"bytecode":{"Ok":[["r0",[{"value":0,"rows":[0,2]},{"value":4,"rows":[3,3]},{"value":7,"rows":[5,9]},{"value":13,"rows":[9,10]}]],["r1",[{"value":1,"rows":[0,2]},{"value":5,"rows":[3,3]},{"value":8,"rows":[5,11]}]],["r2",[{"value":2,"rows":[0,2]},{"value":6,"rows":[3,4]},{"value":9,"rows":[5,10]},{"value":14,"rows":[10,11]}]],["r3",[{"value":3,"rows":[1,2]},{"value":11,"rows":[7,11]}]],["r4",[{"value":12,"rows":[8,9]}]]]},"x86":{"Ok":[["rcx",[{"value":2,"rows":[0,2]},{"value":6,"rows":[3,4]},{"value":9,"rows":[5,10]},{"value":14,"rows":[10,11]}]],["rdx",[{"value":1,"rows":[0,2]},{"value":5,"rows":[3,3]},{"value":8,"rows":[5,11]}]],["rsi",[{"value":0,"rows":[0,2]},{"value":4,"rows":[3,3]},{"value":7,"rows":[5,9]},{"value":13,"rows":[9,10]}]],["r8",[{"value":3,"rows":[1,2]},{"value":11,"rows":[7,11]}]],["r9",[{"value":12,"rows":[8,9]}]]]}},"pressure":[3,4,4,3,1,3,3,4,5,6,5,3],"blocks":[[0,0],[3,1],[5,2]],"spans":[[1,594],[2,592],[4,592],[7,628],[8,658],[9,642],[10,640],[11,616]]},{"id":0,"name":"entry","unused":false,"native":true,"reason":null,"rows":[17,17,17,17,17,17,18,18,18,18,18,18,18,18,18,19,19,19],"changes":[null,null,null,null,null,null,[[0,0,8],[1,8,1],[2,8,1],[0,9,3]],null,null,null,null,null,null,null,null,[[0,0,7],[1,7,1],[0,7,4]],null,null],"cfg":[14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,15,15,15],"bytecode":[["0019","\u003centry\u003e:",[[0,8,7]],null,1],["0019","  load_imm r0, #1",[[2,10,1],[11,13,3],[15,17,4]],[0,1],0],["001a","  load_imm r1, #1000",[[2,10,1],[11,13,3],[15,20,4]],[0,2],0],["001b","  load_imm r2, #0",[[2,10,1],[11,13,3],[15,17,4]],[0,3],0],["001c","  call 000c \u003csum_steps\u003e",[[2,6,2],[7,11,5],[12,23,5]],[0,4],0],["001d","  load_imm r31, #59542",[[2,10,1],[11,14,3],[16,22,4]],[0,6],0],["001e","  ieq r0, r0, r31",[[2,5,1],[6,8,3],[10,12,3],[14,17,3]],[0,6],0],["001f","  assert r0",[[2,8,1],[9,11,3]],[0,7],0],["0020","  ret",[[2,5,2]],[0,8],0],["0021","  halt",[[2,6,1]],null,0]],"x86":[["0000","f0 \u003centry\u003e:",[[0,11,7]],null,1],["0000","  48 81 ec 08 00 00 00           sub     rsp, 8",[[2,22,0],[33,36,1],[41,44,3],[46,47,4]],null,4],["0007","b0:",[[0,3,8]],null,1],["0007","  48 c7 c6 01 00 00 00           mov     rsi, 1",[[2,22,0],[33,36,1],[41,44,3],[46,47,4]],[0,1],0],["000e","  48 c7 c2 e8 03 00 00           mov     rdx, 0x3e8",[[2,22,0],[33,36,1],[41,44,3],[46,51,4]],[0,2],0],["0015","  48 c7 c1 00 00 00 00           mov     rcx, 0",[[2,22,0],[33,36,1],[41,44,3],[46,47,4]],[0,3],0],["001c","  e8 6f ff ff ff                 call    f3 \u003csum_steps\u003e",[[2,16,0],[33,37,2],[41,55,5]],[0,4],0],["0021","  48 89 c6                       mov     rsi, rax",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[0,4],0],["0024","  48 81 fe 96 e8 00 00           cmp     rsi, 0xe896",[[2,22,0],[33,36,1],[41,44,3],[46,52,4]],[0,6],0],["002b","  48 c7 c6 00 00 00 00           mov     rsi, 0",[[2,22,0],[33,36,1],[41,44,3],[46,47,4]],[0,6],0],["0032","  40 0f 94 c6                    sete    sil",[[2,13,0],[33,37,1],[41,44,3]],[0,6],0],["0036","  48 85 f6                       test    rsi, rsi",[[2,10,0],[33,37,1],[41,44,3],[46,49,3]],[0,7],0],["0039","  0f 85 0f 00 00 00              jne     entry+0x4e",[[2,19,0],[33,36,2],[41,51,5]],[0,7],0],["003f","  48 89 df                       mov     rdi, rbx",[[2,10,0],[33,36,1],[41,44,3],[46,49,3]],[0,7],0],["0042","  48 b8 c8 dc 3e 02 01 00 00 00  mov     rax, 0x1023edcc8",[[2,31,0],[33,36,1],[41,44,3],[46,57,4]],[0,7],0],["004c","  ff d0                          call    rax",[[2,7,0],[33,37,2],[41,44,3]],[0,7],0],["004e","  48 81 c4 08 00 00 00           add     rsp, 8",[[2,22,0],[33,36,1],[41,44,3],[46,47,4]],[0,8],0],["0055","  c3                             ret",[[2,4,0],[33,36,2]],[0,8],0]],"registers":{"bytecode":{"Ok":[["r0",[{"value":0,"rows":[1,4]},{"value":3,"rows":[4,6]},{"value":5,"rows":[6,7]},{"value":6,"rows":[7,8]}]],["r1",[{"value":1,"rows":[2,4]}]],["r2",[{"value":2,"rows":[3,4]}]]]},"x86":{"Ok":[["rcx",[{"value":2,"rows":[3,4]}]],["rdx",[{"value":1,"rows":[2,4]}]],["rsi",[{"value":0,"rows":[1,4]},{"value":3,"rows":[4,6]},{"value":5,"rows":[6,7]}]]]}},"pressure":[0,1,2,3,4,1,2,2,1],"blocks":[[0,0]],"spans":[[1,741],[2,743],[3,748],[4,731],[6,751],[7,724],[8,716]]}],"snapshots":[[["","// is_even",[[0,10,6]],null,0],["","fn f1(%v0:Int) -\u003e Bool {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[18,22,10]],null,0],["0","  b0(%v0):",[[2,4,8],[5,8,3]],[1,0],1],["1","    %v1:Int = 2",[[4,7,3],[8,11,10],[14,15,4]],[1,1],0],["2","    %v2:Int = IMod %v0, %v1",[[4,7,3],[8,11,10],[14,18,1],[19,22,3],[24,27,3]],[1,2],0],["3","    %v3:Int = 0",[[4,7,3],[8,11,10],[14,15,4]],[1,3],0],["4","    %v4:Bool = IEq %v2, %v3",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,27,3]],[1,4],0],["5","    ret %v4",[[4,7,2],[8,11,3]],[1,5],0],["","}",[],null,0]],[["","// is_even",[[0,10,6]],null,0],["","fn f1(%v0:Int) -\u003e Bool {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[18,22,10]],null,0],["0","  b0(%v0):",[[2,4,8],[5,8,3]],[1,0],1],["1","    %v1:Int = 1",[[4,7,3],[8,11,10],[14,15,4]],[1,1],0],["2","    %v2:Int = IAnd %v0, %v1",[[4,7,3],[8,11,10],[14,18,1],[19,22,3],[24,27,3]],[1,2],0],["3","    %v3:Int = 0",[[4,7,3],[8,11,10],[14,15,4]],[1,3],0],["4","    %v4:Bool = IEq %v2, %v3",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,27,3]],[1,4],0],["5","    ret %v4",[[4,7,2],[8,11,3]],[1,5],0],["","}",[],null,0]],[["","// is_even",[[0,10,6]],null,0],["","fn f1(%v0:Int) -\u003e Bool {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[18,22,10]],null,0],["0","  b0(%v0):",[[2,4,8],[5,8,3]],[1,0],1],["1","    %v1:Int = 1",[[4,7,3],[8,11,10],[14,15,4]],[1,1],0],["2","    %v2:Int = IAnd %v0, 1",[[4,7,3],[8,11,10],[14,18,1],[19,22,3],[24,25,4]],[1,2],0],["3","    %v3:Int = 0",[[4,7,3],[8,11,10],[14,15,4]],[1,3],0],["4","    %v4:Bool = IEq %v2, 0",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,25,4]],[1,4],0],["5","    ret %v4",[[4,7,2],[8,11,3]],[1,5],0],["","}",[],null,0]],[["","// is_even",[[0,10,6]],null,0],["","fn f1(%v0:Int) -\u003e Bool {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[18,22,10]],null,0],["0","  b0(%v0):",[[2,4,8],[5,8,3]],[1,0],1],["2","    %v2:Int = IAnd %v0, 1",[[4,7,3],[8,11,10],[14,18,1],[19,22,3],[24,25,4]],[1,2],0],["4","    %v4:Bool = IEq %v2, 0",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,25,4]],[1,4],0],["5","    ret %v4",[[4,7,2],[8,11,3]],[1,5],0],["","}",[],null,0]],[["","// unused; not lowered",[[0,22,6]],null,0],["","// is_even",[[0,10,6]],null,0],["","fn f1(%v0:Int) -\u003e Bool {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[18,22,10]],null,0],["0","  b0(%v0):",[[2,4,8],[5,8,3]],[1,0],1],["2","    %v2:Int = IAnd %v0, 1",[[4,7,3],[8,11,10],[14,18,1],[19,22,3],[24,25,4]],[1,2],0],["4","    %v4:Bool = IEq %v2, 0",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,25,4]],[1,4],0],["5","    ret %v4",[[4,7,2],[8,11,3]],[1,5],0],["","}",[],null,0]],[["","// collatz_steps",[[0,16,6]],null,0],["","fn f2(%v0:Int, %v1:Int) -\u003e Int {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[15,18,3],[19,23,10],[27,30,10]],null,0],["0","  b0(%v0, %v1):",[[2,4,8],[5,8,3],[10,13,3]],[2,0],1],["1","    %v2:Int = 1",[[4,7,3],[8,11,10],[14,15,4]],[2,1],0],["2","    %v3:Bool = IEq %v0, %v2",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,27,3]],[2,2],0],["3","    br %v3, b1(%v0, %v1), b2(%v0, %v1)",[[4,6,2],[7,10,3],[12,14,5],[15,18,3],[20,23,3],[26,28,5],[29,32,3],[34,37,3]],[2,3],0],["4","  b1(%v4, %v5):",[[2,4,8],[5,8,3],[10,13,3]],[2,4],1],["5","    jmp b5(%v5, %v4, %v5)",[[4,7,2],[8,10,5],[11,14,3],[16,19,3],[21,24,3]],[2,5],0],["6","  b2(%v6, %v7):",[[2,4,8],[5,8,3],[10,13,3]],[2,6],1],["7","    %v8:Bool = Call f1(%v6)",[[4,7,3],[8,12,10],[15,19,2],[20,22,7],[23,26,3]],[2,7],0],["8","    br %v8, b3(%v6, %v7), b4(%v6, %v7)",[[4,6,2],[7,10,3],[12,14,5],[15,18,3],[20,23,3],[26,28,5],[29,32,3],[34,37,3]],[2,8],0],["9","  b3(%v9, %v10):",[[2,4,8],[5,8,3],[10,14,3]],[2,9],1],["10","    %v11:Int = 2",[[4,8,3],[9,12,10],[15,16,4]],[2,10],0],["11","    %v12:Int = IDiv %v9, %v11",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,29,3]],[2,11],0],["12","    %v13:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,12],0],["13","    %v14:Int = IAdd %v10, %v13",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,30,3]],[2,13],0],["14","    %v15:Int = Call f2(%v12, %v14)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,33,3]],[2,14],0],["15","    jmp b5(%v15, %v9, %v10)",[[4,7,2],[8,10,5],[11,15,3],[17,20,3],[22,26,3]],[2,15],0],["16","  b4(%v16, %v17):",[[2,4,8],[5,9,3],[11,15,3]],[2,16],1],["17","    %v18:Int = 3",[[4,8,3],[9,12,10],[15,16,4]],[2,17],0],["18","    %v19:Int = IMul %v18, %v16",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,30,3]],[2,18],0],["19","    %v20:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,19],0],["20","    %v21:Int = IAdd %v19, %v20",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,30,3]],[2,20],0],["21","    %v22:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,21],0],["22","    %v23:Int = IAdd %v17, %v22",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,30,3]],[2,22],0],["23","    %v24:Int = Call f2(%v21, %v23)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,33,3]],[2,23],0],["24","    jmp b5(%v24, %v16, %v17)",[[4,7,2],[8,10,5],[11,15,3],[17,21,3],[23,27,3]],[2,24],0],["25","  b5(%v25, %v26, %v27):",[[2,4,8],[5,9,3],[11,15,3],[17,21,3]],[2,25],1],["26","    ret %v25",[[4,7,2],[8,12,3]],[2,26],0],["","}",[],null,0]],[["","// collatz_steps",[[0,16,6]],null,0],["","fn f2(%v0:Int, %v1:Int) -\u003e Int {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[15,18,3],[19,23,10],[27,30,10]],null,0],["0","  b0(%v0, %v1):",[[2,4,8],[5,8,3],[10,13,3]],[2,0],1],["1","    %v2:Int = 1",[[4,7,3],[8,11,10],[14,15,4]],[2,1],0],["2","    %v3:Bool = IEq %v0, %v2",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,27,3]],[2,2],0],["3","    br %v3, b1(%v0, %v1), b2(%v0, %v1)",[[4,6,2],[7,10,3],[12,14,5],[15,18,3],[20,23,3],[26,28,5],[29,32,3],[34,37,3]],[2,3],0],["4","  b1(%v4, %v5):",[[2,4,8],[5,8,3],[10,13,3]],[2,4],1],["5","    jmp b5(%v5, %v4, %v5)",[[4,7,2],[8,10,5],[11,14,3],[16,19,3],[21,24,3]],[2,5],0],["6","  b2(%v6, %v7):",[[2,4,8],[5,8,3],[10,13,3]],[2,6],1],["8","    %v30:Int = IAnd %v6, 1",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[2,8],0],["9","    %v32:Bool = IEq %v30, 0",[[4,8,3],[9,13,10],[16,19,1],[20,24,3],[26,27,4]],[2,9],0],["10","    br %v32, b3(%v6, %v7), b4(%v6, %v7)",[[4,6,2],[7,11,3],[13,15,5],[16,19,3],[21,24,3],[27,29,5],[30,33,3],[35,38,3]],[2,10],0],["11","  b3(%v9, %v10):",[[2,4,8],[5,8,3],[10,14,3]],[2,11],1],["12","    %v11:Int = 2",[[4,8,3],[9,12,10],[15,16,4]],[2,12],0],["13","    %v12:Int = IDiv %v9, %v11",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,29,3]],[2,13],0],["14","    %v13:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,14],0],["15","    %v14:Int = IAdd %v10, %v13",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,30,3]],[2,15],0],["16","    %v15:Int = Call f2(%v12, %v14)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,33,3]],[2,16],0],["17","    jmp b5(%v15, %v9, %v10)",[[4,7,2],[8,10,5],[11,15,3],[17,20,3],[22,26,3]],[2,17],0],["18","  b4(%v16, %v17):",[[2,4,8],[5,9,3],[11,15,3]],[2,18],1],["19","    %v18:Int = 3",[[4,8,3],[9,12,10],[15,16,4]],[2,19],0],["20","    %v19:Int = IMul %v18, %v16",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,30,3]],[2,20],0],["21","    %v20:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,21],0],["22","    %v21:Int = IAdd %v19, %v20",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,30,3]],[2,22],0],["23","    %v22:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,23],0],["24","    %v23:Int = IAdd %v17, %v22",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,30,3]],[2,24],0],["25","    %v24:Int = Call f2(%v21, %v23)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,33,3]],[2,25],0],["26","    jmp b5(%v24, %v16, %v17)",[[4,7,2],[8,10,5],[11,15,3],[17,21,3],[23,27,3]],[2,26],0],["27","  b5(%v25, %v26, %v27):",[[2,4,8],[5,9,3],[11,15,3],[17,21,3]],[2,27],1],["28","    ret %v25",[[4,7,2],[8,12,3]],[2,28],0],["","}",[],null,0]],[["","// collatz_steps",[[0,16,6]],null,0],["","fn f2(%v0:Int, %v1:Int) -\u003e Int {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[15,18,3],[19,23,10],[27,30,10]],null,0],["0","  b0(%v0, %v1):",[[2,4,8],[5,8,3],[10,13,3]],[2,0],1],["1","    %v2:Int = 1",[[4,7,3],[8,11,10],[14,15,4]],[2,1],0],["2","    %v3:Bool = IEq %v0, 1",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,25,4]],[2,2],0],["3","    br %v3, b1(%v0, %v1), b2(%v0, %v1)",[[4,6,2],[7,10,3],[12,14,5],[15,18,3],[20,23,3],[26,28,5],[29,32,3],[34,37,3]],[2,3],0],["4","  b1(%v4, %v5):",[[2,4,8],[5,8,3],[10,13,3]],[2,4],1],["5","    jmp b5(%v5, %v4, %v5)",[[4,7,2],[8,10,5],[11,14,3],[16,19,3],[21,24,3]],[2,5],0],["6","  b2(%v6, %v7):",[[2,4,8],[5,8,3],[10,13,3]],[2,6],1],["8","    %v30:Int = IAnd %v6, 1",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[2,8],0],["9","    %v32:Bool = IEq %v30, 0",[[4,8,3],[9,13,10],[16,19,1],[20,24,3],[26,27,4]],[2,9],0],["10","    br %v32, b3(%v6, %v7), b4(%v6, %v7)",[[4,6,2],[7,11,3],[13,15,5],[16,19,3],[21,24,3],[27,29,5],[30,33,3],[35,38,3]],[2,10],0],["11","  b3(%v9, %v10):",[[2,4,8],[5,8,3],[10,14,3]],[2,11],1],["12","    %v11:Int = 2",[[4,8,3],[9,12,10],[15,16,4]],[2,12],0],["13","    %v12:Int = IDiv %v9, 2",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[2,13],0],["14","    %v13:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,14],0],["15","    %v14:Int = IAdd %v10, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,15],0],["16","    %v15:Int = Call f2(%v12, %v14)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,33,3]],[2,16],0],["17","    jmp b5(%v15, %v9, %v10)",[[4,7,2],[8,10,5],[11,15,3],[17,20,3],[22,26,3]],[2,17],0],["18","  b4(%v16, %v17):",[[2,4,8],[5,9,3],[11,15,3]],[2,18],1],["19","    %v18:Int = 3",[[4,8,3],[9,12,10],[15,16,4]],[2,19],0],["20","    %v19:Int = IMul %v16, 3",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,20],0],["21","    %v20:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,21],0],["22","    %v21:Int = IAdd %v19, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,22],0],["23","    %v22:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,23],0],["24","    %v23:Int = IAdd %v17, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,24],0],["25","    %v24:Int = Call f2(%v21, %v23)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,33,3]],[2,25],0],["26","    jmp b5(%v24, %v16, %v17)",[[4,7,2],[8,10,5],[11,15,3],[17,21,3],[23,27,3]],[2,26],0],["27","  b5(%v25, %v26, %v27):",[[2,4,8],[5,9,3],[11,15,3],[17,21,3]],[2,27],1],["28","    ret %v25",[[4,7,2],[8,12,3]],[2,28],0],["","}",[],null,0]],[["","// collatz_steps",[[0,16,6]],null,0],["","fn f2(%v0:Int, %v1:Int) -\u003e Int {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[15,18,3],[19,23,10],[27,30,10]],null,0],["0","  b0(%v0, %v1):",[[2,4,8],[5,8,3],[10,13,3]],[2,0],1],["1","    %v2:Int = 1",[[4,7,3],[8,11,10],[14,15,4]],[2,1],0],["3","    br_imm IEq %v0, 1, b1(%v0, %v1), b2(%v0, %v1)",[[4,10,2],[11,14,1],[15,18,3],[20,21,4],[23,25,5],[26,29,3],[31,34,3],[37,39,5],[40,43,3],[45,48,3]],[2,3],0],["4","  b1(%v4, %v5):",[[2,4,8],[5,8,3],[10,13,3]],[2,4],1],["5","    jmp b5(%v5, %v4, %v5)",[[4,7,2],[8,10,5],[11,14,3],[16,19,3],[21,24,3]],[2,5],0],["6","  b2(%v6, %v7):",[[2,4,8],[5,8,3],[10,13,3]],[2,6],1],["8","    %v30:Int = IAnd %v6, 1",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[2,8],0],["10","    br_imm IEq %v30, 0, b3(%v6, %v7), b4(%v6, %v7)",[[4,10,2],[11,14,1],[15,19,3],[21,22,4],[24,26,5],[27,30,3],[32,35,3],[38,40,5],[41,44,3],[46,49,3]],[2,10],0],["11","  b3(%v9, %v10):",[[2,4,8],[5,8,3],[10,14,3]],[2,11],1],["12","    %v11:Int = 2",[[4,8,3],[9,12,10],[15,16,4]],[2,12],0],["13","    %v12:Int = IDiv %v9, 2",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[2,13],0],["14","    %v13:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,14],0],["15","    %v14:Int = IAdd %v10, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,15],0],["16","    %v15:Int = Call f2(%v12, %v14)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,33,3]],[2,16],0],["17","    jmp b5(%v15, %v9, %v10)",[[4,7,2],[8,10,5],[11,15,3],[17,20,3],[22,26,3]],[2,17],0],["18","  b4(%v16, %v17):",[[2,4,8],[5,9,3],[11,15,3]],[2,18],1],["19","    %v18:Int = 3",[[4,8,3],[9,12,10],[15,16,4]],[2,19],0],["20","    %v19:Int = IMul %v16, 3",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,20],0],["21","    %v20:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,21],0],["22","    %v21:Int = IAdd %v19, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,22],0],["23","    %v22:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,23],0],["24","    %v23:Int = IAdd %v17, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,24],0],["25","    %v24:Int = Call f2(%v21, %v23)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,33,3]],[2,25],0],["26","    jmp b5(%v24, %v16, %v17)",[[4,7,2],[8,10,5],[11,15,3],[17,21,3],[23,27,3]],[2,26],0],["27","  b5(%v25, %v26, %v27):",[[2,4,8],[5,9,3],[11,15,3],[17,21,3]],[2,27],1],["28","    ret %v25",[[4,7,2],[8,12,3]],[2,28],0],["","}",[],null,0]],[["","// collatz_steps",[[0,16,6]],null,0],["","fn f2(%v0:Int, %v1:Int) -\u003e Int {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[15,18,3],[19,23,10],[27,30,10]],null,0],["0","  b0(%v0, %v1):",[[2,4,8],[5,8,3],[10,13,3]],[2,0],1],["1","    %v2:Int = 1",[[4,7,3],[8,11,10],[14,15,4]],[2,1],0],["3","    br_imm IEq %v0, 1, b1(%v0, %v1), b2(%v0, %v1)",[[4,10,2],[11,14,1],[15,18,3],[20,21,4],[23,25,5],[26,29,3],[31,34,3],[37,39,5],[40,43,3],[45,48,3]],[2,3],0],["4","  b1(%v4, %v5):",[[2,4,8],[5,8,3],[10,13,3]],[2,4],1],["5","    ret %v5",[[4,7,2],[8,11,3]],[2,5],0],["6","  b2(%v6, %v7):",[[2,4,8],[5,8,3],[10,13,3]],[2,6],1],["8","    %v30:Int = IAnd %v6, 1",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[2,8],0],["10","    br_imm IEq %v30, 0, b3(%v6, %v7), b4(%v6, %v7)",[[4,10,2],[11,14,1],[15,19,3],[21,22,4],[24,26,5],[27,30,3],[32,35,3],[38,40,5],[41,44,3],[46,49,3]],[2,10],0],["11","  b3(%v9, %v10):",[[2,4,8],[5,8,3],[10,14,3]],[2,11],1],["12","    %v11:Int = 2",[[4,8,3],[9,12,10],[15,16,4]],[2,12],0],["13","    %v12:Int = IDiv %v9, 2",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[2,13],0],["14","    %v13:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,14],0],["15","    %v14:Int = IAdd %v10, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,15],0],["16","    %v15:Int = Call f2(%v12, %v14)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,33,3]],[2,16],0],["17","    ret %v15",[[4,7,2],[8,12,3]],[2,17],0],["18","  b4(%v16, %v17):",[[2,4,8],[5,9,3],[11,15,3]],[2,18],1],["19","    %v18:Int = 3",[[4,8,3],[9,12,10],[15,16,4]],[2,19],0],["20","    %v19:Int = IMul %v16, 3",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,20],0],["21","    %v20:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,21],0],["22","    %v21:Int = IAdd %v19, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,22],0],["23","    %v22:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,23],0],["24","    %v23:Int = IAdd %v17, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,24],0],["25","    %v24:Int = Call f2(%v21, %v23)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,33,3]],[2,25],0],["26","    ret %v24",[[4,7,2],[8,12,3]],[2,26],0],["","  b5(%v25, %v26, %v27):",[[2,4,8],[5,9,3],[11,15,3],[17,21,3]],null,0],["","    \u003ctombstone\u003e",[[4,15,6]],null,0],["","}",[],null,0]],[["","// collatz_steps",[[0,16,6]],null,0],["","fn f2(%v0:Int, %v1:Int) -\u003e Int {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[15,18,3],[19,23,10],[27,30,10]],null,0],["0","  b0(%v0, %v1):",[[2,4,8],[5,8,3],[10,13,3]],[2,0],1],["1","    %v2:Int = 1",[[4,7,3],[8,11,10],[14,15,4]],[2,1],0],["3","    br_imm IEq %v0, 1, b1(%v0, %v1), b2(%v0, %v1)",[[4,10,2],[11,14,1],[15,18,3],[20,21,4],[23,25,5],[26,29,3],[31,34,3],[37,39,5],[40,43,3],[45,48,3]],[2,3],0],["4","  b1(%v4, %v5):",[[2,4,8],[5,8,3],[10,13,3]],[2,4],1],["5","    ret %v5",[[4,7,2],[8,11,3]],[2,5],0],["6","  b2(%v6, %v7):",[[2,4,8],[5,8,3],[10,13,3]],[2,6],1],["8","    %v30:Int = IAnd %v6, 1",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[2,8],0],["10","    br_imm IEq %v30, 0, b3(%v6, %v7), b4(%v6, %v7)",[[4,10,2],[11,14,1],[15,19,3],[21,22,4],[24,26,5],[27,30,3],[32,35,3],[38,40,5],[41,44,3],[46,49,3]],[2,10],0],["11","  b3(%v9, %v10):",[[2,4,8],[5,8,3],[10,14,3]],[2,11],1],["12","    %v11:Int = 2",[[4,8,3],[9,12,10],[15,16,4]],[2,12],0],["13","    %v12:Int = IDiv %v9, 2",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[2,13],0],["14","    %v13:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,14],0],["15","    %v14:Int = IAdd %v10, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,15],0],["16","    tail f2(%v12, %v14)",[[4,8,2],[9,11,7],[12,16,3],[18,22,3]],[2,16],0],["17","  b4(%v16, %v17):",[[2,4,8],[5,9,3],[11,15,3]],[2,17],1],["18","    %v18:Int = 3",[[4,8,3],[9,12,10],[15,16,4]],[2,18],0],["19","    %v19:Int = IMul %v16, 3",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,19],0],["20","    %v20:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,20],0],["21","    %v21:Int = IAdd %v19, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,21],0],["22","    %v22:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[2,22],0],["23","    %v23:Int = IAdd %v17, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,23],0],["24","    tail f2(%v21, %v23)",[[4,8,2],[9,11,7],[12,16,3],[18,22,3]],[2,24],0],["","  b5(%v25, %v26, %v27):",[[2,4,8],[5,9,3],[11,15,3],[17,21,3]],null,0],["","    \u003ctombstone\u003e",[[4,15,6]],null,0],["","}",[],null,0]],[["","// collatz_steps",[[0,16,6]],null,0],["","fn f2(%v0:Int, %v1:Int) -\u003e Int {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[15,18,3],[19,23,10],[27,30,10]],null,0],["0","  b0(%v0, %v1):",[[2,4,8],[5,8,3],[10,13,3]],[2,0],1],["3","    br_imm IEq %v0, 1, b1(%v0, %v1), b2(%v0, %v1)",[[4,10,2],[11,14,1],[15,18,3],[20,21,4],[23,25,5],[26,29,3],[31,34,3],[37,39,5],[40,43,3],[45,48,3]],[2,3],0],["4","  b1(%v4, %v5):",[[2,4,8],[5,8,3],[10,13,3]],[2,4],1],["5","    ret %v5",[[4,7,2],[8,11,3]],[2,5],0],["6","  b2(%v6, %v7):",[[2,4,8],[5,8,3],[10,13,3]],[2,6],1],["8","    %v30:Int = IAnd %v6, 1",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[2,8],0],["10","    br_imm IEq %v30, 0, b3(%v6, %v7), b4(%v6, %v7)",[[4,10,2],[11,14,1],[15,19,3],[21,22,4],[24,26,5],[27,30,3],[32,35,3],[38,40,5],[41,44,3],[46,49,3]],[2,10],0],["11","  b3(%v9, %v10):",[[2,4,8],[5,8,3],[10,14,3]],[2,11],1],["13","    %v12:Int = IDiv %v9, 2",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[2,13],0],["15","    %v14:Int = IAdd %v10, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,15],0],["16","    tail f2(%v12, %v14)",[[4,8,2],[9,11,7],[12,16,3],[18,22,3]],[2,16],0],["17","  b4(%v16, %v17):",[[2,4,8],[5,9,3],[11,15,3]],[2,17],1],["19","    %v19:Int = IMul %v16, 3",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,19],0],["21","    %v21:Int = IAdd %v19, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,21],0],["23","    %v23:Int = IAdd %v17, 1",[[4,8,3],[9,12,10],[15,19,1],[20,24,3],[26,27,4]],[2,23],0],["24","    tail f2(%v21, %v23)",[[4,8,2],[9,11,7],[12,16,3],[18,22,3]],[2,24],0],["","  b5(%v25, %v26, %v27):",[[2,4,8],[5,9,3],[11,15,3],[17,21,3]],null,0],["","    \u003ctombstone\u003e",[[4,15,6]],null,0],["","}",[],null,0]],[["","// sum_steps",[[0,12,6]],null,0],["","fn f3(%v0:Int, %v1:Int, %v2:Int) -\u003e Int {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[15,18,3],[19,23,10],[24,27,3],[28,32,10],[36,39,10]],null,0],["0","  b0(%v0, %v1, %v2):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,0],1],["1","    %v3:Bool = IGt %v0, %v1",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,27,3]],[3,1],0],["2","    br %v3, b1(%v0, %v1, %v2), b2(%v0, %v1, %v2)",[[4,6,2],[7,10,3],[12,14,5],[15,18,3],[20,23,3],[25,28,3],[31,33,5],[34,37,3],[39,42,3],[44,47,3]],[3,2],0],["3","  b1(%v4, %v5, %v6):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,3],1],["4","    jmp b3(%v6, %v4, %v5, %v6)",[[4,7,2],[8,10,5],[11,14,3],[16,19,3],[21,24,3],[26,29,3]],[3,4],0],["5","  b2(%v7, %v8, %v9):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,5],1],["6","    %v10:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[3,6],0],["7","    %v11:Int = IAdd %v7, %v10",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,29,3]],[3,7],0],["8","    %v12:Int = 0",[[4,8,3],[9,12,10],[15,16,4]],[3,8],0],["9","    %v13:Int = Call f2(%v7, %v12)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,26,3],[28,32,3]],[3,9],0],["10","    %v14:Int = IAdd %v9, %v13",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,29,3]],[3,10],0],["11","    %v15:Int = Call f3(%v11, %v8, %v14)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,32,3],[34,38,3]],[3,11],0],["12","    jmp b3(%v15, %v7, %v8, %v9)",[[4,7,2],[8,10,5],[11,15,3],[17,20,3],[22,25,3],[27,30,3]],[3,12],0],["13","  b3(%v16, %v17, %v18, %v19):",[[2,4,8],[5,9,3],[11,15,3],[17,21,3],[23,27,3]],[3,13],1],["14","    ret %v16",[[4,7,2],[8,12,3]],[3,14],0],["","}",[],null,0]],[["","// sum_steps",[[0,12,6]],null,0],["","fn f3(%v0:Int, %v1:Int, %v2:Int) -\u003e Int {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[15,18,3],[19,23,10],[24,27,3],[28,32,10],[36,39,10]],null,0],["0","  b0(%v0, %v1, %v2):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,0],1],["1","    %v3:Bool = IGt %v0, %v1",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,27,3]],[3,1],0],["2","    br %v3, b1(%v0, %v1, %v2), b2(%v0, %v1, %v2)",[[4,6,2],[7,10,3],[12,14,5],[15,18,3],[20,23,3],[25,28,3],[31,33,5],[34,37,3],[39,42,3],[44,47,3]],[3,2],0],["3","  b1(%v4, %v5, %v6):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,3],1],["4","    jmp b3(%v6, %v4, %v5, %v6)",[[4,7,2],[8,10,5],[11,14,3],[16,19,3],[21,24,3],[26,29,3]],[3,4],0],["5","  b2(%v7, %v8, %v9):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,5],1],["6","    %v10:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[3,6],0],["7","    %v11:Int = IAdd %v7, 1",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[3,7],0],["8","    %v12:Int = 0",[[4,8,3],[9,12,10],[15,16,4]],[3,8],0],["9","    %v13:Int = Call f2(%v7, %v12)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,26,3],[28,32,3]],[3,9],0],["10","    %v14:Int = IAdd %v9, %v13",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,29,3]],[3,10],0],["11","    %v15:Int = Call f3(%v11, %v8, %v14)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,32,3],[34,38,3]],[3,11],0],["12","    jmp b3(%v15, %v7, %v8, %v9)",[[4,7,2],[8,10,5],[11,15,3],[17,20,3],[22,25,3],[27,30,3]],[3,12],0],["13","  b3(%v16, %v17, %v18, %v19):",[[2,4,8],[5,9,3],[11,15,3],[17,21,3],[23,27,3]],[3,13],1],["14","    ret %v16",[[4,7,2],[8,12,3]],[3,14],0],["","}",[],null,0]],[["","// sum_steps",[[0,12,6]],null,0],["","fn f3(%v0:Int, %v1:Int, %v2:Int) -\u003e Int {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[15,18,3],[19,23,10],[24,27,3],[28,32,10],[36,39,10]],null,0],["0","  b0(%v0, %v1, %v2):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,0],1],["1","    %v3:Bool = IGt %v0, %v1",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,27,3]],[3,1],0],["2","    br %v3, b1(%v0, %v1, %v2), b2(%v0, %v1, %v2)",[[4,6,2],[7,10,3],[12,14,5],[15,18,3],[20,23,3],[25,28,3],[31,33,5],[34,37,3],[39,42,3],[44,47,3]],[3,2],0],["3","  b1(%v4, %v5, %v6):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,3],1],["4","    ret %v6",[[4,7,2],[8,11,3]],[3,4],0],["5","  b2(%v7, %v8, %v9):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,5],1],["6","    %v10:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[3,6],0],["7","    %v11:Int = IAdd %v7, 1",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[3,7],0],["8","    %v12:Int = 0",[[4,8,3],[9,12,10],[15,16,4]],[3,8],0],["9","    %v13:Int = Call f2(%v7, %v12)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,26,3],[28,32,3]],[3,9],0],["10","    %v14:Int = IAdd %v9, %v13",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,29,3]],[3,10],0],["11","    %v15:Int = Call f3(%v11, %v8, %v14)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,27,3],[29,32,3],[34,38,3]],[3,11],0],["12","    ret %v15",[[4,7,2],[8,12,3]],[3,12],0],["","  b3(%v16, %v17, %v18, %v19):",[[2,4,8],[5,9,3],[11,15,3],[17,21,3],[23,27,3]],null,0],["","    \u003ctombstone\u003e",[[4,15,6]],null,0],["","}",[],null,0]],[["","// sum_steps",[[0,12,6]],null,0],["","fn f3(%v0:Int, %v1:Int, %v2:Int) -\u003e Int {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[15,18,3],[19,23,10],[24,27,3],[28,32,10],[36,39,10]],null,0],["0","  b0(%v0, %v1, %v2):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,0],1],["1","    %v3:Bool = IGt %v0, %v1",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,27,3]],[3,1],0],["2","    br %v3, b1(%v0, %v1, %v2), b2(%v0, %v1, %v2)",[[4,6,2],[7,10,3],[12,14,5],[15,18,3],[20,23,3],[25,28,3],[31,33,5],[34,37,3],[39,42,3],[44,47,3]],[3,2],0],["3","  b1(%v4, %v5, %v6):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,3],1],["4","    ret %v6",[[4,7,2],[8,11,3]],[3,4],0],["5","  b2(%v7, %v8, %v9):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,5],1],["6","    %v10:Int = 1",[[4,8,3],[9,12,10],[15,16,4]],[3,6],0],["7","    %v11:Int = IAdd %v7, 1",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[3,7],0],["8","    %v12:Int = 0",[[4,8,3],[9,12,10],[15,16,4]],[3,8],0],["9","    %v13:Int = Call f2(%v7, %v12)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,26,3],[28,32,3]],[3,9],0],["10","    %v14:Int = IAdd %v9, %v13",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,29,3]],[3,10],0],["11","    tail f3(%v11, %v8, %v14)",[[4,8,2],[9,11,7],[12,16,3],[18,21,3],[23,27,3]],[3,11],0],["","  b3(%v16, %v17, %v18, %v19):",[[2,4,8],[5,9,3],[11,15,3],[17,21,3],[23,27,3]],null,0],["","    \u003ctombstone\u003e",[[4,15,6]],null,0],["","}",[],null,0]],[["","// sum_steps",[[0,12,6]],null,0],["","fn f3(%v0:Int, %v1:Int, %v2:Int) -\u003e Int {",[[0,2,7],[3,5,7],[6,9,3],[10,14,10],[15,18,3],[19,23,10],[24,27,3],[28,32,10],[36,39,10]],null,0],["0","  b0(%v0, %v1, %v2):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,0],1],["1","    %v3:Bool = IGt %v0, %v1",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,27,3]],[3,1],0],["2","    br %v3, b1(%v0, %v1, %v2), b2(%v0, %v1, %v2)",[[4,6,2],[7,10,3],[12,14,5],[15,18,3],[20,23,3],[25,28,3],[31,33,5],[34,37,3],[39,42,3],[44,47,3]],[3,2],0],["3","  b1(%v4, %v5, %v6):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,3],1],["4","    ret %v6",[[4,7,2],[8,11,3]],[3,4],0],["5","  b2(%v7, %v8, %v9):",[[2,4,8],[5,8,3],[10,13,3],[15,18,3]],[3,5],1],["7","    %v11:Int = IAdd %v7, 1",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,26,4]],[3,7],0],["8","    %v12:Int = 0",[[4,8,3],[9,12,10],[15,16,4]],[3,8],0],["9","    %v13:Int = Call f2(%v7, %v12)",[[4,8,3],[9,12,10],[15,19,2],[20,22,7],[23,26,3],[28,32,3]],[3,9],0],["10","    %v14:Int = IAdd %v9, %v13",[[4,8,3],[9,12,10],[15,19,1],[20,23,3],[25,29,3]],[3,10],0],["11","    tail f3(%v11, %v8, %v14)",[[4,8,2],[9,11,7],[12,16,3],[18,21,3],[23,27,3]],[3,11],0],["","  b3(%v16, %v17, %v18, %v19):",[[2,4,8],[5,9,3],[11,15,3],[17,21,3],[23,27,3]],null,0],["","    \u003ctombstone\u003e",[[4,15,6]],null,0],["","}",[],null,0]],[["","// entry",[[0,8,6]],null,0],["","fn f0() -\u003e Void {",[[0,2,7],[3,5,7],[11,15,10]],null,0],["0","  b0():",[[2,4,8]],[0,0],1],["1","    %v0:Int = 1",[[4,7,3],[8,11,10],[14,15,4]],[0,1],0],["2","    %v1:Int = 1000",[[4,7,3],[8,11,10],[14,18,4]],[0,2],0],["3","    %v2:Int = 0",[[4,7,3],[8,11,10],[14,15,4]],[0,3],0],["4","    %v3:Int = Call f3(%v0, %v1, %v2)",[[4,7,3],[8,11,10],[14,18,2],[19,21,7],[22,25,3],[27,30,3],[32,35,3]],[0,4],0],["5","    %v4:Int = 59542",[[4,7,3],[8,11,10],[14,19,4]],[0,5],0],["6","    %v5:Bool = IEq %v3, %v4",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,27,3]],[0,6],0],["7","    %v6:Void = Assert %v5",[[4,7,3],[8,12,10],[15,21,1],[22,25,3]],[0,7],0],["8","    ret %v6",[[4,7,2],[8,11,3]],[0,8],0],["","}",[],null,0]],[["","// entry",[[0,8,6]],null,0],["","fn f0() -\u003e Void {",[[0,2,7],[3,5,7],[11,15,10]],null,0],["0","  b0():",[[2,4,8]],[0,0],1],["1","    %v0:Int = 1",[[4,7,3],[8,11,10],[14,15,4]],[0,1],0],["2","    %v1:Int = 1000",[[4,7,3],[8,11,10],[14,18,4]],[0,2],0],["3","    %v2:Int = 0",[[4,7,3],[8,11,10],[14,15,4]],[0,3],0],["4","    %v3:Int = Call f3(%v0, %v1, %v2)",[[4,7,3],[8,11,10],[14,18,2],[19,21,7],[22,25,3],[27,30,3],[32,35,3]],[0,4],0],["5","    %v4:Int = 59542",[[4,7,3],[8,11,10],[14,19,4]],[0,5],0],["6","    %v5:Bool = IEq %v3, 59542",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,29,4]],[0,6],0],["7","    %v6:Void = Assert %v5",[[4,7,3],[8,12,10],[15,21,1],[22,25,3]],[0,7],0],["8","    ret %v6",[[4,7,2],[8,11,3]],[0,8],0],["","}",[],null,0]],[["","// entry",[[0,8,6]],null,0],["","fn f0() -\u003e Void {",[[0,2,7],[3,5,7],[11,15,10]],null,0],["0","  b0():",[[2,4,8]],[0,0],1],["1","    %v0:Int = 1",[[4,7,3],[8,11,10],[14,15,4]],[0,1],0],["2","    %v1:Int = 1000",[[4,7,3],[8,11,10],[14,18,4]],[0,2],0],["3","    %v2:Int = 0",[[4,7,3],[8,11,10],[14,15,4]],[0,3],0],["4","    %v3:Int = Call f3(%v0, %v1, %v2)",[[4,7,3],[8,11,10],[14,18,2],[19,21,7],[22,25,3],[27,30,3],[32,35,3]],[0,4],0],["6","    %v5:Bool = IEq %v3, 59542",[[4,7,3],[8,12,10],[15,18,1],[19,22,3],[24,29,4]],[0,6],0],["7","    %v6:Void = Assert %v5",[[4,7,3],[8,12,10],[15,21,1],[22,25,3]],[0,7],0],["8","    ret %v6",[[4,7,2],[8,11,3]],[0,8],0],["","}",[],null,0]]],"program":[0,0,1,1,1,2,3,4,4,5,5,5,6,6,6,7,7,8],"programs":[{"parts":[[0,0],[4,317],[10,1163],[14,1804]],"calls":[[2,802,232,942,232,111,-92,111,40,111,48],[2,776,400,880,400,464,-56,464,40,464,48],[2,1047,416,1187,416,464,-92,464,40,464,48],[2,1688,256,1828,256,464,-92,464,40,464,48],[2,1688,256,1803,256,1343,-67,1343,40,1343,48],[2,2065,128,2205,128,1343,-92,1343,40,1343,48]],"size":[2085,652]},{"parts":[[0,0],[5,317],[10,1163],[14,1804]],"calls":[[2,776,416,880,416,464,-56,464,40,464,48],[2,1047,432,1187,432,464,-92,464,40,464,48],[2,1688,256,1828,256,464,-92,464,40,464,48],[2,1688,256,1803,256,1343,-67,1343,40,1343,48],[2,2065,128,2205,128,1343,-92,1343,40,1343,48]],"size":[2085,668]},{"parts":[[0,0],[5,317],[10,1163],[14,1804]],"calls":[[2,776,416,880,416,464,-56,464,40,464,48],[2,1047,432,1187,432,464,-92,464,40,464,48],[2,1688,256,1828,256,464,-92,464,40,464,48],[2,1688,256,1803,256,1343,-67,1343,40,1343,48],[2,2065,128,2205,128,1343,-92,1343,40,1343,48]],"size":[2085,668]},{"parts":[[1,0],[5,304],[10,1150],[14,1791]],"calls":[[2,763,416,867,416,451,-56,451,40,451,48],[2,1034,432,1174,432,451,-92,451,40,451,48],[2,1675,256,1815,256,451,-92,451,40,451,48],[2,1675,256,1790,256,1330,-67,1330,40,1330,48],[2,2051,128,2191,128,1330,-92,1330,40,1330,48]],"size":[2071,668]},{"parts":[[1,0],[6,304],[10,1150],[14,1791]],"calls":[[2,763,384,855,384,487,-44,487,40,487,48],[2,1034,400,1174,400,487,-92,487,40,487,48],[2,1675,256,1815,256,487,-92,487,40,487,48],[2,1675,256,1790,256,1330,-67,1330,40,1330,48],[2,2051,128,2191,128,1330,-92,1330,40,1330,48]],"size":[2071,636]},{"parts":[[1,0],[7,304],[11,1084],[14,1659]],"calls":[[2,697,384,767,384,487,-22,487,40,487,48],[2,968,400,1108,400,487,-92,487,40,487,48],[2,1543,256,1683,256,487,-92,487,40,487,48],[2,1543,256,1636,256,1264,-45,1264,40,1264,48],[2,1919,128,2059,128,1264,-92,1264,40,1264,48]],"size":[1939,500]},{"parts":[[1,0],[8,304],[12,992],[14,1527]],"calls":[[2,651,376,705,376,487,-7,487,40,487,48],[2,876,392,1005,392,487,-82,487,40,487,48],[2,1411,248,1551,248,487,-92,487,40,487,48],[2,1411,248,1491,248,1171,-32,1171,40,1171,48],[2,1787,128,1927,128,1171,-92,1171,40,1171,48]],"size":[1807,484]},{"parts":[[2,0],[9,304],[13,992],[15,1527]],"calls":[[2,651,344,705,344,487,-7,487,40,487,48],[2,876,352,1005,352,487,-82,487,40,487,48],[2,1411,240,1551,240,487,-92,487,40,487,48],[2,1411,240,1491,240,1171,-32,1171,40,1171,48],[2,1787,120,1927,120,1171,-92,1171,40,1171,48]],"size":[1807,420]},{"parts":[[3,0],[9,304],[13,992],[15,1527]],"calls":[[2,651,344,705,344,487,-7,487,40,487,48],[2,876,352,1005,352,487,-82,487,40,487,48],[2,1411,240,1551,240,487,-92,487,40,487,48],[2,1411,240,1491,240,1171,-32,1171,40,1171,48],[2,1787,120,1927,120,1171,-92,1171,40,1171,48]],"size":[1807,420]}],"layouts":[[[[1,0,20,48,181,112,2,7]],[],[["f1 \u003cis_even\u003e",0,0]],[221,180]],[[[1,0,20,48,168,112,2,7]],[],[["f1 \u003cis_even\u003e",0,0]],[208,180]],[[[1,0,20,48,168,80,2,5]],[],[["f1 \u003cis_even\u003e",0,0]],[208,148]],[[[1,0,20,48,168,80,3,6]],[],[["f1 \u003cis_even\u003e",0,0]],[208,148]],[[[2,0,20,48,254,80,2,5],[2,1,20,200,168,48,6,7],[2,2,232,200,254,64,8,10],[2,3,232,336,227,128,11,17],[2,4,503,336,227,160,18,26],[2,5,20,584,155,48,27,28]],[[0,36,128,36,149,36,169,36,190,36,200],[0,96,128,96,140,96,152,96,164,147,164,197,164,248,164,248,173,248,181,248,190,248,200],[0,36,248,36,357,36,465,36,574,36,584],[0,248,264,248,285,248,305,248,326,248,336],[0,308,264,308,276,308,288,308,300,378,300,449,300,519,300,519,309,519,317,519,326,519,336],[0,248,464,248,492,248,520,248,548,177,548,107,548,36,548,36,557,36,565,36,574,36,584],[0,519,496,519,513,519,531,519,548,358,548,197,548,36,548,36,557,36,565,36,574,36,584],[2,459,400,563,400,147,-56,147,40,147,48],[2,730,416,870,416,147,-92,147,40,147,48]],[["f2 \u003ccollatz_steps\u003e",0,0]],[750,652]],[[[2,0,20,48,254,80,2,5],[2,1,20,200,168,48,6,7],[2,2,232,200,260,80,8,11],[2,3,232,352,227,128,12,18],[2,4,503,352,227,160,19,27],[2,5,20,600,155,48,28,29]],[[0,36,128,36,149,36,169,36,190,36,200],[0,96,128,96,140,96,152,96,164,147,164,197,164,248,164,248,173,248,181,248,190,248,200],[0,36,248,36,362,36,476,36,590,36,600],[0,248,280,248,301,248,321,248,342,248,352],[0,308,280,308,292,308,304,308,316,378,316,449,316,519,316,519,325,519,333,519,342,519,352],[0,248,480,248,508,248,536,248,564,177,564,107,564,36,564,36,573,36,581,36,590,36,600],[0,519,512,519,529,519,547,519,564,358,564,197,564,36,564,36,573,36,581,36,590,36,600],[2,459,416,563,416,147,-56,147,40,147,48],[2,730,432,870,432,147,-92,147,40,147,48]],[["f2 \u003ccollatz_steps\u003e",0,0]],[750,668]],[[[2,0,20,48,326,64,2,4],[2,1,20,184,168,48,5,6],[2,2,232,184,333,64,7,9],[2,3,232,320,227,128,10,16],[2,4,503,320,227,160,17,25],[2,5,20,568,155,48,26,27]],[[0,36,112,36,133,36,153,36,174,36,184],[0,96,112,96,124,96,136,96,148,147,148,197,148,248,148,248,157,248,165,248,174,248,184],[0,36,232,36,341,36,449,36,558,36,568],[0,248,248,248,269,248,289,248,310,248,320],[0,308,248,308,260,308,272,308,284,378,284,449,284,519,284,519,293,519,301,519,310,519,320],[0,248,448,248,476,248,504,248,532,177,532,107,532,36,532,36,541,36,549,36,558,36,568],[0,519,480,519,497,519,515,519,532,358,532,197,532,36,532,36,541,36,549,36,558,36,568],[2,459,384,551,384,183,-44,183,40,183,48],[2,730,400,870,400,183,-92,183,40,183,48]],[["f2 \u003ccollatz_steps\u003e",0,0]],[750,636]],[[[2,0,20,48,326,64,2,4],[2,1,20,184,102,48,5,6],[2,2,166,184,333,64,7,9],[2,3,166,320,227,128,10,16],[2,4,437,320,227,160,17,25]],[[0,36,112,36,133,36,153,36,174,36,184],[0,96,112,96,124,96,136,96,148,125,148,153,148,182,148,182,157,182,165,182,174,182,184],[0,182,248,182,269,182,289,182,310,182,320],[0,242,248,242,260,242,272,242,284,312,284,383,284,453,284,453,293,453,301,453,310,453,320],[2,393,384,463,384,183,-22,183,40,183,48],[2,664,400,804,400,183,-92,183,40,183,48]],[["f2 \u003ccollatz_steps\u003e",0,0]],[684,500]],[[[2,0,20,48,326,64,2,4],[2,1,20,184,102,48,5,6],[2,2,166,184,333,64,7,9],[2,3,166,320,181,112,10,15],[2,4,391,320,181,144,16,23]],[[0,36,112,36,133,36,153,36,174,36,184],[0,96,112,96,124,96,136,96,148,125,148,153,148,182,148,182,157,182,165,182,174,182,184],[0,182,248,182,269,182,289,182,310,182,320],[0,242,248,242,260,242,272,242,284,297,284,352,284,407,284,407,293,407,301,407,310,407,320],[2,347,376,401,376,183,-7,183,40,183,48],[2,572,392,701,392,183,-82,183,40,183,48]],[["f2 \u003ccollatz_steps\u003e",0,0]],[592,484]],[[[2,0,20,48,326,48,2,3],[2,1,20,168,102,48,4,5],[2,2,166,168,333,64,6,8],[2,3,166,304,181,80,9,12],[2,4,391,304,181,96,13,17]],[[0,36,96,36,117,36,137,36,158,36,168],[0,96,96,96,108,96,120,96,132,125,132,153,132,182,132,182,141,182,149,182,158,182,168],[0,182,232,182,253,182,273,182,294,182,304],[0,242,232,242,244,242,256,242,268,297,268,352,268,407,268,407,277,407,285,407,294,407,304],[2,347,344,401,344,183,-7,183,40,183,48],[2,572,352,701,352,183,-82,183,40,183,48]],[["f2 \u003ccollatz_steps\u003e",0,0]],[592,420]],[[[3,0,20,48,320,64,2,4],[3,1,20,184,201,48,5,6],[3,2,265,184,260,144,7,14],[3,3,20,416,194,48,15,16]],[[0,36,112,36,133,36,153,36,174,36,184],[0,96,112,96,124,96,136,96,148,158,148,219,148,281,148,281,157,281,165,281,174,281,184],[0,36,232,36,290,36,348,36,406,36,416],[0,281,328,281,345,281,363,281,380,199,380,118,380,36,380,36,389,36,397,36,406,36,416],[2,525,256,640,256,180,-67,180,40,180,48]],[["f3 \u003csum_steps\u003e",0,0]],[545,484]],[[[3,0,20,48,320,64,2,4],[3,1,20,184,135,48,5,6],[3,2,199,184,260,144,7,14]],[[0,36,112,36,133,36,153,36,174,36,184],[0,96,112,96,124,96,136,96,148,136,148,175,148,215,148,215,157,215,165,215,174,215,184],[2,459,256,552,256,180,-45,180,40,180,48]],[["f3 \u003csum_steps\u003e",0,0]],[479,348]],[[[3,0,20,48,320,64,2,4],[3,1,20,184,135,48,5,6],[3,2,199,184,221,128,7,13]],[[0,36,112,36,133,36,153,36,174,36,184],[0,96,112,96,124,96,136,96,148,136,148,175,148,215,148,215,157,215,165,215,174,215,184],[2,419,248,499,248,180,-32,180,40,180,48]],[["f3 \u003csum_steps\u003e",0,0]],[439,332]],[[[3,0,20,48,320,64,2,4],[3,1,20,184,135,48,5,6],[3,2,199,184,221,112,7,12]],[[0,36,112,36,133,36,153,36,174,36,184],[0,96,112,96,124,96,136,96,148,136,148,175,148,215,148,215,157,215,165,215,174,215,184],[2,419,240,499,240,180,-32,180,40,180,48]],[["f3 \u003csum_steps\u003e",0,0]],[439,316]],[[[0,0,20,48,240,160,2,10]],[],[["f0 \u003centry\u003e",0,0]],[280,228]],[[[0,0,20,48,240,144,2,9]],[],[["f0 \u003centry\u003e",0,0]],[280,212]]],"char_width":6.6,"line":16.0,"pad":8.0,"host_runs_x86":false}</script>
+<script>// Draws the report's views from the json the compiler embedded, nothing is computed here that
+// the compiler didn't: see purple-garden-inspect/src/report.rs for the data.
+"use strict";
+
+const D = JSON.parse(document.getElementById("data").textContent);
+
+const TABS = [
+  ["ir", "IR"],
+  ["cfg", "CFG"],
+  ["registers", "Registers"],
+  ["bytecode", "Bytecode"],
+  ["x86", "x86-64"],
+  ["ast", "AST"],
+  ["types", "Types"],
+  ["memory", "Memory"],
+  ["output", "Output"],
+];
+const PER_FUNCTION = new Set(["ir", "cfg", "registers", "bytecode", "x86"]);
+const LAST_PASS = Math.max(D.passes.length - 1, 0);
+
+// what the views show, mirrored in the url's hash so links and reloads keep it
+const S = {
+  tab: "ir",
+  func: null, // a function id, or "all"
+  pass: LAST_PASS,
+  target: "bytecode",
+  line: null, // the selected source line
+  hover: null, // "func:row"
+  pinned: null, // a row a link points at, "func:row"
+  zoom: 1,
+  pan: [24, 52],
+  fitted: null, // what the graph was last fitted to
+};
+
+// ---- helpers
+
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "style") e.style.cssText = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat()) {
+    if (c === null || c === undefined || c === false) continue;
+    e.append(c instanceof Node ? c : String(c));
+  }
+  return e;
+}
+
+const SVG = "http://www.w3.org/2000/svg";
+function svg(tag, attrs) {
+  const e = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+}
+
+/// Maps byte offsets of `text`, as the compiler counts, to string indices.
+function byteIndex(text) {
+  if (!/[^\x00-\x7f]/.test(text)) return (b) => b;
+  const map = [];
+  let b = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.codePointAt(i);
+    const len = code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+    for (let k = 0; k < len; k++) map[b + k] = i;
+    b += len;
+    if (code >= 0x10000) i++;
+  }
+  map[b] = text.length;
+  return (byte) => map[Math.min(byte, b)] ?? text.length;
+}
+
+/// `text` with `highlights`, `[start, end, class]` byte ranges, as spans. A class is a name, or
+/// an index into `D.classes`.
+function highlighted(text, highlights) {
+  const at = byteIndex(text);
+  const out = [];
+  let i = 0;
+  for (const [start, end, cls] of highlights) {
+    const s = at(start), e = at(end);
+    if (s < i) continue;
+    if (s > i) out.push(text.slice(i, s));
+    const name = typeof cls === "number" ? D.classes[cls] : cls.replace(".", "-");
+    out.push(el("span", { class: name }, text.slice(s, e)));
+    i = e;
+  }
+  if (i < text.length) out.push(text.slice(i));
+  return out;
+}
+
+const func = (id) => D.functions.find((f) => f.id === id);
+const TONE = Object.fromEntries(D.tones.map((t, i) => [t, i]));
+const changed = (f, pass) => pass === 0 || f.changes[pass] !== null;
+
+/// The IR of `f` after `pass` as listing lines, the rows the pass removed and added marked.
+function irLines(f, pass) {
+  const rows = D.snapshots[f.rows[pass]];
+  const changes = f.changes[pass];
+  if (!changes) return rows;
+  const old = D.snapshots[f.rows[pass - 1]];
+  const out = [];
+  for (const [kind, start, len] of changes) {
+    for (const [gutter, text, highlights, row, tone] of (kind === 1 ? old : rows).slice(start, start + len)) {
+      // kept rows as they are, removed ones link nowhere anymore
+      if (kind === 0) out.push([gutter, text, highlights, row, tone]);
+      else if (kind === 1) out.push([gutter, text, highlights, null, TONE.Removed]);
+      else out.push([gutter, text, highlights, row, TONE.Added]);
+    }
+  }
+  return out;
+}
+
+/// A [`CompactLayout`] as nodes, edges, titles and size, moved right by `dx`.
+function layoutOf([nodes, edges, titles, size], dx = 0) {
+  return {
+    nodes: nodes.map(([func, block, x, y, w, h, r0, r1]) => ({ func, block, origin: [x + dx, y], size: [w, h], rows: [r0, r1] })),
+    edges: edges.map(edge),
+    titles: titles.map(([text, x, y]) => ({ text, origin: [x + dx, y] })),
+    size,
+  };
+  function edge([kind, ...flat]) {
+    const xy = [];
+    for (let i = 0; i < flat.length; i += 2) xy.push([flat[i] + dx, flat[i + 1]]);
+    return { back: kind === 1, call: kind === 2, points: xy.slice(0, -1), tip: xy[xy.length - 1] };
+  }
+}
+
+/// Every function's graph after `pass`, side by side.
+function programLayout(pass) {
+  const p = D.programs[D.program[pass]];
+  const out = { nodes: [], edges: [], titles: [], size: p.size };
+  for (const [index, dx] of p.parts) {
+    const part = layoutOf(D.layouts[index], dx);
+    out.nodes.push(...part.nodes);
+    out.edges.push(...part.edges);
+    out.titles.push(...part.titles);
+  }
+  out.edges.push(...layoutOf([[], p.calls, [], p.size]).edges);
+  return out;
+}
+const shown = () => (S.func === "all" ? D.functions : [func(S.func)].filter(Boolean));
+const key = (f, r) => `${f}:${r}`;
+
+// ---- source lines
+
+// byte offsets: the compiler's spans count bytes
+const SOURCE = new TextEncoder().encode(D.source);
+const lineStarts = [0];
+SOURCE.forEach((b, i) => {
+  if (b === 0x0a) lineStarts.push(i + 1);
+});
+function lineOf(offset) {
+  let lo = 0, hi = lineStarts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (lineStarts[mid] <= offset) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+/// The source line `func:row` was lowered from.
+function sourceLine(rowKey) {
+  if (!rowKey) return null;
+  const [f, r] = rowKey.split(":").map(Number);
+  const span = func(f)?.spans.find(([row]) => row === r);
+  return span ? lineOf(span[1]) : null;
+}
+
+/// Rows lowered from the selected source line.
+function activeRows() {
+  const out = new Set();
+  if (S.line === null) return out;
+  for (const f of shown()) {
+    for (const [row, span] of f.spans) if (lineOf(span) === S.line) out.add(key(f.id, row));
+  }
+  return out;
+}
+
+/// The function whose rows came from source line `line`, the entry's are top level code.
+function functionAt(line) {
+  const hits = D.functions.filter((f) => f.name !== "entry" && f.spans.some(([, s]) => lineOf(s) === line));
+  return (hits[0] ?? D.functions.find((f) => f.name === "entry"))?.id ?? null;
+}
+
+function renderSource() {
+  const root = document.getElementById("source");
+  root.replaceChildren();
+  const bytes = SOURCE;
+  const decoder = new TextDecoder();
+  let token = 0;
+  lineStarts.forEach((start, n) => {
+    const end = n + 1 < lineStarts.length ? lineStarts[n + 1] - 1 : bytes.length;
+    const text = decoder.decode(bytes.slice(start, end));
+    const highlights = [];
+    while (token < D.tokens.length && D.tokens[token][0] < end) {
+      const [s, e, name] = D.tokens[token];
+      if (e > start) highlights.push([Math.max(s, start) - start, Math.min(e, end) - start, name]);
+      if (e > end) break;
+      token++;
+    }
+    root.append(
+      el(
+        "div",
+        { class: "src", "data-line": n, onclick: () => selectLine(n) },
+        el("span", { class: "n" }, n + 1),
+        el("span", {}, highlighted(text, highlights)),
+      ),
+    );
+  });
+}
+
+function selectLine(n) {
+  S.line = S.line === n ? null : n;
+  if (S.line !== null && S.func !== "all") S.func = functionAt(n) ?? S.func;
+  render();
+}
+
+// ---- hover linking
+
+function setHover(rowKey) {
+  rowKey = rowKey ?? S.pinned;
+  if (S.hover === rowKey) return;
+  for (const e of document.querySelectorAll(".hov")) e.classList.remove("hov");
+  S.hover = rowKey;
+  if (rowKey) {
+    for (const e of document.querySelectorAll(`[data-r="${rowKey}"]`)) e.classList.add("hov");
+    const line = sourceLine(rowKey);
+    if (line !== null) document.querySelector(`.src[data-line="${line}"]`)?.classList.add("hov");
+  }
+  renderStatus();
+}
+
+document.addEventListener("mouseover", (e) => {
+  const hit = e.target.closest?.("[data-r]");
+  setHover(hit ? hit.dataset.r : null);
+});
+
+// ---- listings
+
+/// `lines` as `[gutter, text, highlights, row, tone]` tuples.
+function listing(lines) {
+  const active = activeRows();
+  const width = Math.max(0, ...lines.map((l) => l[0].length));
+  return el(
+    "div",
+    { class: "scroll" },
+    el(
+      "div",
+      { class: "listing" },
+      lines.map(([gutter, text, highlights, row, tone]) => {
+        const r = row ? key(row[0], row[1]) : null;
+        const cls = ["ln", `tone-${D.tones[tone]}`, r && active.has(r) && "on", r && r === S.hover && "hov"];
+        return el(
+          "div",
+          { class: cls.filter(Boolean).join(" "), "data-r": r },
+          el("span", { class: "g", style: `width:${width}ch` }, gutter),
+          el("span", { class: "t" }, highlighted(text, highlights)),
+        );
+      }),
+    ),
+  );
+}
+
+/// The listings of every shown function, a blank line between two.
+function joined(pick) {
+  const out = [];
+  for (const f of shown()) {
+    if (out.length) out.push(["", "", [], null, TONE.Normal]);
+    out.push(...pick(f));
+  }
+  return out;
+}
+
+const empty = (text) => el("div", { class: "empty" }, text);
+
+// ---- views
+
+function viewIr() {
+  if (!shown().length) return empty("No function to show");
+  const anyChanged = (i) => shown().some((f) => changed(f, i));
+  const passes = el(
+    "div",
+    { class: "passes" },
+    D.passes.map((name, i) =>
+      el(
+        "div",
+        {
+          class: ["item", i === S.pass && "on", anyChanged(i) && "changed"].filter(Boolean).join(" "),
+          onclick: () => {
+            S.pass = i;
+            render();
+          },
+        },
+        el("span", {}, name),
+        el("span", {}, anyChanged(i) && i > 0 ? "+" : ""),
+      ),
+    ),
+  );
+  return [passes, listing(joined((f) => irLines(f, S.pass)))];
+}
+
+function viewCode(pick, note) {
+  if (!shown().length) return empty("No function to show");
+  const lines = joined(pick);
+  const list = lines.length ? listing(lines) : empty("Nothing to show");
+  return note ? el("div", { class: "scroll", style: "display:flex;flex-direction:column" }, el("div", { class: "bar" }, note), list) : list;
+}
+
+function x86Note() {
+  const fs = shown();
+  const native = fs.filter((f) => f.native).length;
+  const host = D.host_runs_x86 ? "" : " · compiled on a host that can't run it";
+  return `${native} of ${fs.length} functions compiled by the x86-64 backend${host}`;
+}
+
+/// Font size of the graph's monospace font making a character `char_width` wide.
+let graphFont = null;
+function graphFontSize() {
+  if (graphFont) return graphFont;
+  const probe = el("span", { style: "font:100px var(--mono);position:absolute;visibility:hidden" }, "m".repeat(10));
+  document.body.append(probe);
+  const width = probe.getBoundingClientRect().width / 10;
+  probe.remove();
+  graphFont = width > 0 ? (100 * D.char_width) / width : 11;
+  return graphFont;
+}
+
+function viewCfg() {
+  if (!shown().length) return empty("No function to show");
+  const layout = S.func === "all" ? programLayout(S.pass) : layoutOf(D.layouts[shown()[0].cfg[S.pass]]);
+  const rowsOf = (f) => D.snapshots[func(f).rows[S.pass]];
+  const active = activeRows();
+  const world = el("div", { class: "world" });
+  const lines = svg("svg", { width: layout.size[0] + 200, height: layout.size[1] + 200 });
+  for (const e of layout.edges) {
+    const cls = e.call ? "call" : e.back ? "back" : "";
+    const [first, ...rest] = e.points;
+    let d = `M${first[0]},${first[1]}`;
+    for (let i = 0; i + 2 < rest.length; i += 3) d += `C${rest[i]},${rest[i + 1]},${rest[i + 2]}`;
+    lines.append(svg("path", { d, class: cls }));
+    // the arrow head, from the end of the curve to the tip
+    const end = e.points[e.points.length - 1];
+    let dx = e.tip[0] - end[0], dy = e.tip[1] - end[1];
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+    const bx = e.tip[0] - dx * 8, by = e.tip[1] - dy * 8;
+    lines.append(
+      svg("polygon", {
+        points: `${e.tip[0]},${e.tip[1]} ${bx - dy * 4},${by + dx * 4} ${bx + dy * 4},${by - dx * 4}`,
+        class: cls,
+      }),
+    );
+  }
+  world.append(lines);
+  for (const t of layout.titles) {
+    world.append(el("div", { class: "title", style: `left:${t.origin[0]}px;top:${t.origin[1]}px` }, t.text));
+  }
+  const font = graphFontSize();
+  for (const n of layout.nodes) {
+    const rows = rowsOf(n.func).slice(n.rows[0], n.rows[1] + 1);
+    world.append(
+      el(
+        "div",
+        {
+          class: "node",
+          style: `left:${n.origin[0]}px;top:${n.origin[1]}px;width:${n.size[0]}px;height:${n.size[1]}px;` +
+            `padding:${D.pad}px 0;font-size:${font}px;line-height:${D.line}px;--pad:${D.pad}px`,
+        },
+        rows.map(([, text, highlights, row]) => {
+          // a block's rows sit one indent in, the label at none
+          const cut = text.startsWith("  ") ? 2 : 0;
+          const shifted = highlights.map(([s, e, c]) => [s - cut, e - cut, c]);
+          const r = row ? key(row[0], row[1]) : null;
+          return el(
+            "div",
+            { "data-r": r, class: [r && active.has(r) && "on", r && r === S.hover && "hov"].filter(Boolean).join(" ") },
+            highlighted(text.slice(cut), shifted),
+          );
+        }),
+      ),
+    );
+  }
+
+  const view = el("div", { class: "cfg" }, world);
+  const place = () => {
+    world.style.transform = `translate(${S.pan[0]}px,${S.pan[1]}px) scale(${S.zoom})`;
+    zoomLabel.textContent = `${Math.round(S.zoom * 100)}%`;
+  };
+  const fit = () => {
+    const w = view.clientWidth, h = view.clientHeight;
+    if (!w || !layout.size[0]) return;
+    S.zoom = Math.max(0.2, Math.min(1, (w - 48) / layout.size[0], (h - 100) / layout.size[1]));
+    S.pan = [Math.max(24, (w - layout.size[0] * S.zoom) / 2), 52];
+    place();
+  };
+  const zoomBy = (factor, at) => {
+    const z = Math.max(0.2, Math.min(4, S.zoom * factor));
+    // keep the point under `at` where it is
+    S.pan = [at[0] - ((at[0] - S.pan[0]) * z) / S.zoom, at[1] - ((at[1] - S.pan[1]) * z) / S.zoom];
+    S.zoom = z;
+    place();
+  };
+  const zoomLabel = el("span", { class: "zoom" });
+  const center = () => [view.clientWidth / 2, view.clientHeight / 2];
+  view.append(
+    el(
+      "div",
+      { class: "tools", onmousedown: (e) => e.stopPropagation() },
+      `after ${D.passes[S.pass]}`,
+      el("button", { onclick: () => zoomBy(1 / 1.25, center()) }, "−"),
+      zoomLabel,
+      el("button", { onclick: () => zoomBy(1.25, center()) }, "+"),
+      el("button", { onclick: () => { S.zoom = 1; S.pan = [24, 52]; place(); } }, "100%"),
+      el("button", { onclick: fit }, "fit"),
+    ),
+  );
+  view.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const box = view.getBoundingClientRect();
+      if (e.ctrlKey || e.metaKey) zoomBy(Math.exp(-e.deltaY / 300), [e.clientX - box.left, e.clientY - box.top]);
+      else {
+        S.pan = [S.pan[0] - e.deltaX, S.pan[1] - e.deltaY];
+        place();
+      }
+    },
+    { passive: false },
+  );
+  view.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    const start = [e.clientX, e.clientY, ...S.pan];
+    view.classList.add("drag");
+    const move = (m) => {
+      S.pan = [start[2] + m.clientX - start[0], start[3] + m.clientY - start[1]];
+      place();
+    };
+    const up = () => {
+      view.classList.remove("drag");
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  });
+  // fit when another function is shown, keep pan and zoom while stepping through passes
+  requestAnimationFrame(() => {
+    if (S.fitted !== S.func) {
+      S.fitted = S.func;
+      fit();
+    }
+    place();
+  });
+  place();
+  return view;
+}
+
+const LANE = 22, ROW = 16, LABELS = 64, CHART = 36;
+const BARS = getComputedStyle(document.documentElement).getPropertyValue("--bars").split(",").map((c) => c.trim());
+
+function timeline(f, lanes) {
+  const rows = f.pressure.length;
+  const top = CHART + 18;
+  const max = Math.max(1, ...f.pressure);
+  const t = el("div", {
+    class: "timeline",
+    style: `width:${LABELS + ROW * rows + 24}px;height:${top + LANE * lanes.length + 12}px`,
+  });
+  const at = (x, y, w, h) => `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
+  f.pressure.forEach((live, row) => {
+    const h = (CHART * live) / max;
+    t.append(el("div", { class: "live", style: at(LABELS + ROW * row + 1, CHART - h, ROW - 2, h) }));
+  });
+  for (const [row, block] of f.blocks) {
+    t.append(el("div", { class: "tick", style: `left:${LABELS + ROW * row}px;top:${CHART + 2}px` }, `b${block}`));
+    t.append(el("div", { class: "rule", style: at(LABELS + ROW * row, top, 1, LANE * lanes.length) }));
+  }
+  lanes.forEach(([location, bars], lane) => {
+    const y = top + LANE * lane;
+    t.append(el("div", { class: "lane", style: `left:8px;top:${y + 3}px` }, location));
+    for (const { value, rows: [def, last] } of bars) {
+      // from the middle of the defining row to the middle of the last use: a register freed by a
+      // value's last use is taken by the value defined on that very row
+      const [x, w] = def === last ? [ROW * def + ROW / 4, ROW / 2] : [ROW * def + ROW / 2, ROW * (last - def)];
+      const color = BARS[value % BARS.length];
+      t.append(
+        el(
+          "div",
+          {
+            class: "bar",
+            "data-r": key(f.id, def),
+            title: `%v${value} ${location}, rows ${def}..${last}`,
+            style: `${at(LABELS + x + 1, y + 2, w - 2, LANE - 4)};border-color:${color};` +
+              `background:color-mix(in srgb, ${color} 25%, transparent)`,
+          },
+          `%v${value}`,
+        ),
+      );
+    }
+  });
+  return t;
+}
+
+function viewRegisters() {
+  if (!shown().length) return empty("No function to show");
+  const toggle = el(
+    "span",
+    { style: "margin-left:auto;display:flex;height:100%" },
+    ["bytecode", "x86"].map((target) =>
+      el(
+        "span",
+        {
+          class: ["item", S.target === target && "on"].filter(Boolean).join(" "),
+          style: "color:var(--fg)",
+          onclick: () => {
+            S.target = target;
+            render();
+          },
+        },
+        target === "x86" ? "x86-64" : "bytecode",
+      ),
+    ),
+  );
+  const body = el("div", { class: "regs" });
+  for (const f of shown()) {
+    body.append(el("h3", {}, `f${f.id} <${f.name}>`));
+    const lanes = f.registers[S.target];
+    body.append(lanes.Ok ? timeline(f, lanes.Ok) : el("div", { class: "why" }, lanes.Err));
+  }
+  return el(
+    "div",
+    { style: "flex:1;display:flex;flex-direction:column;min-width:0" },
+    el(
+      "div",
+      { class: "bar", style: "padding-right:0" },
+      "a lane per register and stack slot, a bar from a value's definition to its last use, live values on top",
+      toggle,
+    ),
+    body,
+  );
+}
+
+function duration(us) {
+  return us >= 1000 ? `${(us / 1000).toFixed(2)} ms` : `${us} µs`;
+}
+function bytes(n) {
+  return n < 1024 ? `${n} B` : n < 1 << 20 ? `${(n / 1024).toFixed(1)} KiB` : `${(n / (1 << 20)).toFixed(1)} MiB`;
+}
+
+function viewMemory() {
+  if (!D.phases.length) return empty("Nothing compiled");
+  const maxTime = Math.max(1, ...D.phases.map((p) => p.micros));
+  const maxPeak = Math.max(1, ...D.phases.map((p) => p.peak));
+  const meter = (fraction, cls) =>
+    el("span", { class: `meter ${cls}` }, el("span", { style: `width:${(fraction * 100).toFixed(1)}%` }));
+  const total = D.phases.reduce((t, p) => t + p.micros, 0);
+  return el(
+    "div",
+    { class: "page" },
+    el(
+      "table",
+      {},
+      el("tr", {}, ["phase", "wall time", "peak live", "allocs", "frees", "allocated"].map((h) => el("th", {}, h))),
+      D.phases.map((p) =>
+        el(
+          "tr",
+          {},
+          el("td", {}, p.name),
+          el("td", {}, meter(p.micros / maxTime, ""), duration(p.micros)),
+          el("td", {}, meter(p.peak / maxPeak, "peak"), bytes(p.peak)),
+          el("td", {}, p.allocs),
+          el("td", {}, p.frees),
+          el("td", {}, bytes(p.bytes)),
+        ),
+      ),
+    ),
+    el("h4", {}, `compiled in ${duration(total)}, when the report was made`),
+  );
+}
+
+function viewOutput() {
+  const page = el("div", { class: "page" });
+  if (D.error) page.append(el("h4", {}, "compiler"), el("pre", { class: "error" }, D.error));
+  if (D.diagnostics.length) {
+    page.append(el("h4", {}, `${D.diagnostics.length} errors`));
+    for (const d of D.diagnostics) {
+      page.append(
+        el(
+          "pre",
+          {
+            class: "error",
+            onclick: () => {
+              S.line = lineOf(d.start);
+              render();
+              document.querySelector(`.src[data-line="${S.line}"]`)?.scrollIntoView({ block: "center" });
+            },
+          },
+          d.rendered.trimEnd(),
+        ),
+      );
+    }
+  }
+  if (!D.error && !D.diagnostics.length) page.append(el("h4", {}, "no errors"));
+  page.append(
+    el("h4", {}, "run"),
+    el("pre", {}, "A report isn't run, run the program with `purple-garden " + D.file + "`."),
+  );
+  return page;
+}
+
+// ---- chrome
+
+function renderHeader() {
+  const errors = D.diagnostics.length;
+  const total = D.phases.reduce((t, p) => t + p.micros, 0);
+  const note = D.error
+    ? el("span", { class: "note bad" }, D.error.split("\n")[0])
+    : errors
+      ? el("span", { class: "note bad" }, `${errors} error${errors === 1 ? "" : "s"}`)
+      : el("span", { class: "note" }, `compiled in ${duration(total)}`);
+  document.getElementById("header").replaceChildren(
+    el("span", { class: "file" }, D.file),
+    note,
+    el("span", { class: "note", style: "margin-left:auto" }, "purple garden report"),
+  );
+}
+
+function renderTabs() {
+  document.getElementById("tabs").replaceChildren(
+    ...TABS.map(([id, label]) =>
+      el(
+        "a",
+        {
+          href: "#",
+          class: S.tab === id ? "on" : null,
+          onclick: (e) => {
+            e.preventDefault();
+            S.tab = id;
+            render();
+          },
+        },
+        label,
+        id === "output" && D.diagnostics.length ? el("span", { class: "count" }, `(${D.diagnostics.length})`) : null,
+      ),
+    ),
+  );
+}
+
+function renderFunctions() {
+  const bar = document.getElementById("functions");
+  bar.hidden = !PER_FUNCTION.has(S.tab) || !D.functions.length;
+  const pick = (id) => () => {
+    S.func = id;
+    S.hover = null;
+    render();
+  };
+  bar.replaceChildren(
+    el("span", { class: ["item", S.func === "all" && "on"].filter(Boolean).join(" "), onclick: pick("all") }, "all"),
+    el("span", { class: "sep" }),
+    ...D.functions.map((f) =>
+      el(
+        "span",
+        {
+          class: ["item", S.func === f.id && "on", f.unused && "unused"].filter(Boolean).join(" "),
+          title: f.native ? "compiled to x86-64" : f.reason ? `stays bytecode: ${f.reason}` : null,
+          onclick: pick(f.id),
+        },
+        el("span", { class: ["marker", f.native && "native", f.unused && "unused"].filter(Boolean).join(" ") }),
+        f.name,
+      ),
+    ),
+    el(
+      "span",
+      { class: "legend" },
+      el("span", { class: "marker native" }),
+      "x86-64",
+      el("span", { class: "marker", style: "margin-left:8px" }),
+      "bytecode",
+    ),
+  );
+}
+
+function renderStatus() {
+  const parts = [];
+  if (S.line !== null) parts.push(`line ${S.line + 1}`);
+  if (PER_FUNCTION.has(S.tab) && D.functions.length) {
+    const f = func(S.func);
+    parts.push(S.func === "all" ? `all ${D.functions.length} functions` : f ? `f${f.id} ${f.name}` : "");
+    if (D.passes.length) parts.push(`after ${D.passes[S.pass]} (${S.pass + 1}/${D.passes.length})`);
+    if (S.hover) parts.push(`f${S.hover.replace(":", " row ")}`);
+  }
+  document.getElementById("status").replaceChildren(...parts.map((p) => el("span", {}, p)));
+}
+
+function renderContent() {
+  const lines = (pick) => () => viewCode(pick);
+  const views = {
+    ir: viewIr,
+    cfg: viewCfg,
+    registers: viewRegisters,
+    bytecode: lines((f) => f.bytecode),
+    x86: () => viewCode((f) => f.x86, x86Note()),
+    ast: () => (D.ast.length ? listing(D.ast) : empty("No AST")),
+    types: () => (D.types.length ? listing(D.types) : empty("No types")),
+    memory: viewMemory,
+    output: viewOutput,
+  };
+  const content = document.getElementById("content");
+  content.replaceChildren(...[views[S.tab]()].flat());
+}
+
+function render() {
+  for (const e of document.querySelectorAll(".src.on")) e.classList.remove("on");
+  if (S.line !== null) document.querySelector(`.src[data-line="${S.line}"]`)?.classList.add("on");
+  renderTabs();
+  renderFunctions();
+  renderContent();
+  renderStatus();
+  saveHash();
+}
+
+// ---- state in the url
+
+function saveHash() {
+  const h = new URLSearchParams({ tab: S.tab, f: S.func ?? "", pass: S.pass, target: S.target });
+  if (S.line !== null) h.set("line", S.line + 1);
+  if (S.pinned) h.set("row", S.pinned);
+  history.replaceState(null, "", `#${h}`);
+}
+
+function loadHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (TABS.some(([id]) => id === h.get("tab"))) S.tab = h.get("tab");
+  const f = h.get("f");
+  if (f === "all") S.func = "all";
+  else if (f && func(Number(f))) S.func = Number(f);
+  const pass = Number(h.get("pass") ?? NaN);
+  if (Number.isInteger(pass) && pass >= 0 && pass <= LAST_PASS) S.pass = pass;
+  if (h.get("target") === "x86") S.target = "x86";
+  const line = Number(h.get("line") ?? NaN);
+  if (Number.isInteger(line) && line >= 1 && line <= lineStarts.length) S.line = line - 1;
+  if (/^\d+:\d+$/.test(h.get("row") ?? "")) S.pinned = h.get("row");
+}
+
+// ---- keys: [ and ] step through the passes, 1 to 9 pick a tab
+
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.("input, textarea")) return;
+  if (e.key === "[" || e.key === "]") {
+    S.pass = Math.max(0, Math.min(LAST_PASS, S.pass + (e.key === "]" ? 1 : -1)));
+    render();
+  } else if (/^[1-9]$/.test(e.key) && TABS[Number(e.key) - 1]) {
+    S.tab = TABS[Number(e.key) - 1][0];
+    render();
+  }
+});
+
+// the first function that isn't the entry
+S.func = (D.functions.find((f) => !f.unused && f.name !== "entry") ?? D.functions[0])?.id ?? null;
+loadHash();
+renderHeader();
+renderSource();
+render();
+setHover(S.pinned);
+</script>
+</body>
+</html>
